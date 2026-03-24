@@ -2135,7 +2135,9 @@ async def gelismis_yardim(ctx):
         e.add_field(name="Ticket - Ozellikler", value="`.ticketkonu [konu]` ┗ Konu ayarlar\n`.ticketlist` ┗ Acik ticketlari listeler\n`.ticketsayi` ┗ Toplam ticket sayisi\n`.ticketoncelik [dusuk/orta/yuksek]` ┗ Oncelik belirler\n`.ticketsahip @uye` ┗ Sahibi degistirir\n`.ticketyeniden @uye` ┗ Yeniden acar", inline=False)
         e.add_field(name="Anti-Link", value="`.antilink` ┗ Durum gosterir\n`.antilink ac` ┗ Acar\n`.antilink kapat` ┗ Kapatir\n`.antilink muaf @rol/#kanal` ┗ Muafiyet ekler/kaldirir", inline=False)
         e.add_field(name="Renk Sistemi", value="`.renkekle @rol` ┗ Menuye rol ekler\n`.renkcikar @rol` ┗ Menuden rol cikarir\n`.renklist` ┗ Listedeki rolleri gosterir\n`.renkpanel` ┗ Secim paneli gonderir", inline=False)
-        e.add_field(name="Log Sistemi", value="`.logkur` ┗ Otomatik kanal tarar\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
+        e.add_field(name="Log Sistemi", value="`.logkur` ┗ Otomatik kanal tarar\n`.logkurkanal` ┗ Eksik log kanallarini olusturur\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
+        e.add_field(name="Level Sistemi", value="`.levelkanal #kanal`\n`.levelmesaj <mesaj>`\n`.levelgif <url|kapat>`\n`.leveldurum`\n`.seviye [@uye]`", inline=False)
+        e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkanal #kanal`\n`.hosgeldinmesaj <mesaj>`\n`.hosgeldingif <url|kapat>`\n`.hosgeldinrol @rol` · `.hosgeldinrolsil @rol`\n`.hosgeldinroller` · `.hosgeldindurum`", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -2201,7 +2203,9 @@ async def yardim(ctx):
         e = discord.Embed(title="🔧 Araçlar & Sistemler", color=0x9B59B6, timestamp=datetime.now(timezone.utc))
         e.add_field(name="Ticket", value="`.ticketkur [kategori] #log @rol` ┗ Kurar\n`.ticketpanel` ┗ Panel gönderir", inline=False)
         e.add_field(name="Anti-Link", value="`.antilink` ┗ Durum\n`.antilink ac` ┗ Açar\n`.antilink kapat` ┗ Kapatır\n`.antilink muaf @rol/#kanal` ┗ Muafiyet", inline=False)
-        e.add_field(name="Log Sistemi (Slash)", value="`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
+        e.add_field(name="Log Sistemi", value="`.logkur` · `.logkurkanal`\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
+        e.add_field(name="Level Sistemi", value="`.levelkanal` · `.levelmesaj` · `.levelgif`\n`.leveldurum` · `.seviye`", inline=False)
+        e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkanal` · `.hosgeldinmesaj` · `.hosgeldingif`\n`.hosgeldinrol` · `.hosgeldinrolsil` · `.hosgeldinroller` · `.hosgeldindurum`", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -3209,6 +3213,398 @@ async def renk_panel(ctx):
 
     embed = discord.Embed(title="Renk Sistemi", description="Asagidan kendine bir renk rolu sec.", color=RENKLER["rol"])
     await ctx.send(embed=embed, view=RenkView())
+
+
+# ═══════════════════════════════════════════════════════════════
+#  LEVEL + HOSGELDIN SISTEMI (EK BLOK)
+# ═══════════════════════════════════════════════════════════════
+
+import random
+
+_LEVEL_XP_COOLDOWN = {}
+_LEVEL_COOLDOWN_SANIYE = 45
+
+
+def _guild_ayar_al(guild_id: int) -> dict:
+    return ayarlari_yukle().get(str(guild_id), {})
+
+
+def _guild_ayar_kismi_kaydet(guild_id: int, key: str, value):
+    ayarlar = ayarlari_yukle()
+    gk = str(guild_id)
+    if gk not in ayarlar:
+        ayarlar[gk] = {}
+    ayarlar[gk][key] = value
+    ayarlari_kaydet(ayarlar)
+
+
+def _level_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("level_sistemi", {})
+    return {
+        "kanal_id": veri.get("kanal_id"),
+        "mesaj": veri.get("mesaj", "Tebrikler {member_mention}, **{level}. seviye** oldun!"),
+        "gif_url": veri.get("gif_url"),
+    }
+
+
+def _level_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "level_sistemi", veri)
+
+
+def _welcome_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("hosgeldin_sistemi", {})
+    return {
+        "kanal_id": veri.get("kanal_id"),
+        "mesaj": veri.get("mesaj", "Aramiza hos geldin {member_mention}! Sunucuda iyi eglenceler."),
+        "gif_url": veri.get("gif_url"),
+        "rol_ids": veri.get("rol_ids", []),
+    }
+
+
+def _welcome_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "hosgeldin_sistemi", veri)
+
+
+def _xp_hedef(level: int) -> int:
+    return 5 * (level ** 2) + (50 * level) + 100
+
+
+def _xp_veri_al(guild_id: int, user_id: int) -> dict:
+    ayarlar = ayarlari_yukle()
+    gk, uk = str(guild_id), str(user_id)
+    if gk not in ayarlar:
+        ayarlar[gk] = {}
+    if "level_xp" not in ayarlar[gk]:
+        ayarlar[gk]["level_xp"] = {}
+    if uk not in ayarlar[gk]["level_xp"]:
+        ayarlar[gk]["level_xp"][uk] = {"xp": 0, "level": 0}
+        ayarlari_kaydet(ayarlar)
+    return ayarlar[gk]["level_xp"][uk]
+
+
+def _xp_veri_kaydet(guild_id: int, user_id: int, veri: dict):
+    ayarlar = ayarlari_yukle()
+    gk, uk = str(guild_id), str(user_id)
+    if gk not in ayarlar:
+        ayarlar[gk] = {}
+    if "level_xp" not in ayarlar[gk]:
+        ayarlar[gk]["level_xp"] = {}
+    ayarlar[gk]["level_xp"][uk] = veri
+    ayarlari_kaydet(ayarlar)
+
+
+def _sablon_doldur(sablon: str, uye: discord.Member, level: int = 0, xp: int = 0) -> str:
+    return sablon.format(
+        user=str(uye),
+        username=uye.name,
+        member_mention=uye.mention,
+        mention=uye.mention,
+        level=level,
+        xp=xp,
+        guild=uye.guild.name,
+        member_count=uye.guild.member_count
+    )
+
+
+@bot.command(name="levelkanal")
+@commands.has_permissions(manage_guild=True)
+async def level_kanal_ayarla(ctx, kanal: discord.TextChannel = None):
+    if not kanal:
+        await ctx.send("Kullanim: `.levelkanal #kanal`")
+        return
+    ayar = _level_ayar_al(ctx.guild.id)
+    ayar["kanal_id"] = kanal.id
+    _level_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(f"Level atlama kanali ayarlandi: {kanal.mention}")
+
+
+@bot.command(name="levelmesaj")
+@commands.has_permissions(manage_guild=True)
+async def level_mesaj_ayarla(ctx, *, mesaj: str = None):
+    if not mesaj:
+        await ctx.send("Kullanim: `.levelmesaj <mesaj>`\nKullanilabilir: `{member_mention}`, `{level}`, `{xp}`, `{guild}`")
+        return
+    ayar = _level_ayar_al(ctx.guild.id)
+    ayar["mesaj"] = mesaj
+    _level_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send("Level mesaji guncellendi.")
+
+
+@bot.command(name="levelgif")
+@commands.has_permissions(manage_guild=True)
+async def level_gif_ayarla(ctx, gif_url: str = None):
+    if not gif_url:
+        await ctx.send("Kullanim: `.levelgif <gif_url>` veya `.levelgif kapat`")
+        return
+    ayar = _level_ayar_al(ctx.guild.id)
+    if gif_url.lower() in ("kapat", "sil", "off", "none"):
+        ayar["gif_url"] = None
+        _level_ayar_kaydet(ctx.guild.id, ayar)
+        await ctx.send("Level GIF kaldirildi.")
+        return
+    ayar["gif_url"] = gif_url
+    _level_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send("Level GIF ayarlandi.")
+
+
+@bot.command(name="seviye", aliases=["level", "rank"])
+async def seviye_goster(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    veri = _xp_veri_al(ctx.guild.id, hedef.id)
+    seviye = int(veri.get("level", 0))
+    xp = int(veri.get("xp", 0))
+    hedef_xp = _xp_hedef(seviye)
+    e = discord.Embed(title="Seviye Bilgisi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    e.add_field(name="Kullanici", value=hedef.mention, inline=True)
+    e.add_field(name="Level", value=str(seviye), inline=True)
+    e.add_field(name="XP", value=f"{xp} / {hedef_xp}", inline=True)
+    e.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=e)
+
+
+@bot.command(name="hosgeldinkanal")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_kanal_ayarla(ctx, kanal: discord.TextChannel = None):
+    if not kanal:
+        await ctx.send("Kullanim: `.hosgeldinkanal #kanal`")
+        return
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    ayar["kanal_id"] = kanal.id
+    _welcome_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(f"Hosgeldin kanali ayarlandi: {kanal.mention}")
+
+
+@bot.command(name="hosgeldinmesaj")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_mesaj_ayarla(ctx, *, mesaj: str = None):
+    if not mesaj:
+        await ctx.send("Kullanim: `.hosgeldinmesaj <mesaj>`\nKullanilabilir: `{member_mention}`, `{user}`, `{guild}`, `{member_count}`")
+        return
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    ayar["mesaj"] = mesaj
+    _welcome_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send("Hosgeldin mesaji guncellendi.")
+
+
+@bot.command(name="hosgeldingif")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_gif_ayarla(ctx, gif_url: str = None):
+    if not gif_url:
+        await ctx.send("Kullanim: `.hosgeldingif <gif_url>` veya `.hosgeldingif kapat`")
+        return
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    if gif_url.lower() in ("kapat", "sil", "off", "none"):
+        ayar["gif_url"] = None
+        _welcome_ayar_kaydet(ctx.guild.id, ayar)
+        await ctx.send("Hosgeldin GIF kaldirildi.")
+        return
+    ayar["gif_url"] = gif_url
+    _welcome_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send("Hosgeldin GIF ayarlandi.")
+
+
+@bot.command(name="hosgeldinrol")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_rol_ekle(ctx, rol: discord.Role = None):
+    if not rol:
+        await ctx.send("Kullanim: `.hosgeldinrol @rol`")
+        return
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    rol_ids = list(ayar.get("rol_ids", []))
+    if rol.id not in rol_ids:
+        rol_ids.append(rol.id)
+    ayar["rol_ids"] = rol_ids
+    _welcome_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(f"Hosgeldin mesajina etiketlenecek rollere eklendi: {rol.mention}")
+
+
+@bot.command(name="hosgeldinrolsil")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_rol_sil(ctx, rol: discord.Role = None):
+    if not rol:
+        await ctx.send("Kullanim: `.hosgeldinrolsil @rol`")
+        return
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    ayar["rol_ids"] = [rid for rid in ayar.get("rol_ids", []) if rid != rol.id]
+    _welcome_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(f"Hosgeldin etiket rollerinden cikarildi: {rol.mention}")
+
+
+@bot.command(name="hosgeldinroller")
+async def hosgeldin_roller_liste(ctx):
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    roller = [ctx.guild.get_role(rid) for rid in ayar.get("rol_ids", [])]
+    roller = [r.mention for r in roller if r]
+    await ctx.send("Etiketlenecek roller:\n" + ("\n".join(roller) if roller else "Hic rol ayarlanmamis."))
+
+
+@bot.command(name="hosgeldindurum")
+async def hosgeldin_durum(ctx):
+    ayar = _welcome_ayar_al(ctx.guild.id)
+    kanal = ctx.guild.get_channel(ayar.get("kanal_id")) if ayar.get("kanal_id") else None
+    roller = [ctx.guild.get_role(rid) for rid in ayar.get("rol_ids", [])]
+    roller = [r.mention for r in roller if r]
+    e = discord.Embed(title="Hosgeldin Sistemi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    e.add_field(name="Kanal", value=kanal.mention if kanal else "Ayarlanmamis", inline=False)
+    e.add_field(name="Mesaj", value=ayar.get("mesaj", "-"), inline=False)
+    e.add_field(name="GIF", value=ayar.get("gif_url") or "Yok", inline=False)
+    e.add_field(name="Roller", value=", ".join(roller) if roller else "Yok", inline=False)
+    await ctx.send(embed=e)
+
+
+@bot.command(name="leveldurum")
+async def level_durum(ctx):
+    ayar = _level_ayar_al(ctx.guild.id)
+    kanal = ctx.guild.get_channel(ayar.get("kanal_id")) if ayar.get("kanal_id") else None
+    e = discord.Embed(title="Level Sistemi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    e.add_field(name="Kanal", value=kanal.mention if kanal else "Ayarlanmamis", inline=False)
+    e.add_field(name="Mesaj", value=ayar.get("mesaj", "-"), inline=False)
+    e.add_field(name="GIF", value=ayar.get("gif_url") or "Yok", inline=False)
+    await ctx.send(embed=e)
+
+
+@bot.listen("on_member_join")
+async def hosgeldin_listener(member: discord.Member):
+    ayar = _welcome_ayar_al(member.guild.id)
+    kanal_id = ayar.get("kanal_id")
+    if not kanal_id:
+        return
+    kanal = member.guild.get_channel(kanal_id)
+    if not kanal:
+        return
+
+    rol_mentionlari = []
+    for rol_id in ayar.get("rol_ids", []):
+        rol = member.guild.get_role(rol_id)
+        if rol:
+            rol_mentionlari.append(rol.mention)
+
+    mesaj_ust = f"{member.mention}"
+    if rol_mentionlari:
+        mesaj_ust += " " + " ".join(rol_mentionlari)
+
+    e = discord.Embed(
+        title="Hos Geldin!",
+        description=_sablon_doldur(ayar.get("mesaj", ""), member),
+        color=RENKLER["giris"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    if ayar.get("gif_url"):
+        e.set_image(url=ayar["gif_url"])
+    if member.display_avatar:
+        e.set_thumbnail(url=member.display_avatar.url)
+    e.set_footer(text=zaman_damgasi())
+
+    try:
+        await kanal.send(mesaj_ust, embed=e)
+    except discord.Forbidden:
+        pass
+
+
+@bot.listen("on_message")
+async def level_xp_listener(message: discord.Message):
+    if message.author.bot or not message.guild:
+        return
+
+    anahtar = (message.guild.id, message.author.id)
+    simdi_ts = datetime.now(timezone.utc).timestamp()
+    son = _LEVEL_XP_COOLDOWN.get(anahtar, 0)
+    if (simdi_ts - son) < _LEVEL_COOLDOWN_SANIYE:
+        return
+    _LEVEL_XP_COOLDOWN[anahtar] = simdi_ts
+
+    veri = _xp_veri_al(message.guild.id, message.author.id)
+    onceki_level = int(veri.get("level", 0))
+    yeni_xp = int(veri.get("xp", 0)) + random.randint(8, 15)
+    yeni_level = onceki_level
+
+    while yeni_xp >= _xp_hedef(yeni_level):
+        yeni_xp -= _xp_hedef(yeni_level)
+        yeni_level += 1
+
+    veri["xp"] = yeni_xp
+    veri["level"] = yeni_level
+    _xp_veri_kaydet(message.guild.id, message.author.id, veri)
+
+    if yeni_level <= onceki_level:
+        return
+
+    ayar = _level_ayar_al(message.guild.id)
+    kanal_id = ayar.get("kanal_id")
+    if not kanal_id:
+        return
+    kanal = message.guild.get_channel(kanal_id)
+    if not kanal:
+        return
+
+    aciklama = _sablon_doldur(ayar.get("mesaj", ""), message.author, level=yeni_level, xp=yeni_xp)
+    e = discord.Embed(
+        title="Seviye Atladin!",
+        description=aciklama,
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.add_field(name="Yeni Level", value=f"**{yeni_level}**", inline=True)
+    e.add_field(name="Kalan XP", value=f"**{yeni_xp} / {_xp_hedef(yeni_level)}**", inline=True)
+    if ayar.get("gif_url"):
+        e.set_image(url=ayar["gif_url"])
+    if message.author.display_avatar:
+        e.set_thumbnail(url=message.author.display_avatar.url)
+    e.set_footer(text=zaman_damgasi())
+
+    try:
+        await kanal.send(message.author.mention, embed=e)
+    except discord.Forbidden:
+        pass
+
+
+@bot.command(name="logkurkanal", aliases=["log-kanal-kur", "logkanalkur"])
+@commands.has_permissions(manage_guild=True, manage_channels=True)
+async def log_kur_kanal_olustur(ctx):
+    kategori_ad = "LOG KANALLARI"
+    kategori = discord.utils.get(ctx.guild.categories, name=kategori_ad)
+    if kategori is None:
+        kategori = await ctx.guild.create_category(kategori_ad, reason=f"{ctx.author} tarafindan log kanallari icin olusturuldu")
+
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    if gk not in ayarlar:
+        ayarlar[gk] = {}
+
+    olusturulanlar = []
+    mevcutlar = []
+
+    for tur in LOG_TURLERI.keys():
+        kanal_adi = LOG_KANAL_KALIPLARI.get(tur, [tur])[0]
+        kanal = discord.utils.get(ctx.guild.text_channels, name=kanal_adi)
+        if kanal is None:
+            kanal = await ctx.guild.create_text_channel(
+                kanal_adi,
+                category=kategori,
+                reason=f"{ctx.author} tarafindan .logkurkanal komutu ile olusturuldu"
+            )
+            olusturulanlar.append(kanal.mention)
+        else:
+            mevcutlar.append(kanal.mention)
+            if kanal.category_id != kategori.id:
+                try:
+                    await kanal.edit(category=kategori, reason="Log kategori duzeni")
+                except discord.Forbidden:
+                    pass
+        ayarlar[gk][tur] = kanal.id
+
+    ayarlari_kaydet(ayarlar)
+
+    e = discord.Embed(
+        title="Log Kanallari Hazir",
+        description="Eksik log kanallari olusturuldu ve sisteme kaydedildi.",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.add_field(name="Olusturulan", value="\n".join(olusturulanlar[:20]) if olusturulanlar else "Yeni kanal olusturulmadi.", inline=False)
+    e.add_field(name="Zaten Vardi", value="\n".join(mevcutlar[:20]) if mevcutlar else "Yok", inline=False)
+    e.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=e)
 
 
 app = Flask(__name__)
