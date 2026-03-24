@@ -90,7 +90,9 @@ def _supabase_headers(ekstra: dict | None = None) -> dict:
 
 def _supabase_istek(path: str, method: str = "GET", payload=None, extra_headers: dict | None = None, timeout: int = 20):
     if not supabase_aktif_mi() or _supabase_gecici_devre_disi_mi():
+        print(f"[DEBUG] Supabase istek atlandi | aktif={supabase_aktif_mi()} cooldown={_supabase_gecici_devre_disi_mi()} path={path}")
         return None
+    print(f"[DEBUG] Supabase istek basladi | method={method} path={path}")
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         f"{SUPABASE_URL}{path}",
@@ -103,6 +105,7 @@ def _supabase_istek(path: str, method: str = "GET", payload=None, extra_headers:
             ham = resp.read().decode("utf-8")
         global _supabase_fail_count
         _supabase_fail_count = 0
+        print(f"[DEBUG] Supabase istek basarili | method={method} path={path}")
         return json.loads(ham) if ham else True
     except urllib.error.HTTPError as e:
         try:
@@ -332,12 +335,15 @@ def ayarlari_yukle() -> dict:
     Dosya yoksa boş dict döndürür.
     """
     if supabase_aktif_mi():
+        print("[DEBUG] Ayarlar Supabase'ten okunuyor")
         belge = _supabase_istek(
             f"/rest/v1/{SUPABASE_TABLE}?id=eq.global_settings&select=data",
             extra_headers={"Accept": "application/json"},
         )
         if isinstance(belge, list) and belge:
+            print("[DEBUG] Ayarlar Supabase'ten bulundu")
             return belge[0].get("data", {}) or {}
+        print("[DEBUG] Ayarlar Supabase'te bulunamadi, fallback denenecek")
 
     with _ayar_dosya_kilidi:
         klasor = os.path.dirname(AYAR_DOSYASI)
@@ -375,6 +381,7 @@ def varsayilan_kanallari_yukle(guild_id: int):
 def ayarlari_kaydet(veri: dict):
     """Tüm ayarları önce Supabase'e, o yoksa yerel dosyaya yazar."""
     if supabase_aktif_mi():
+        print(f"[DEBUG] Ayarlar Supabase'e yaziliyor | guild_sayisi={len(veri)}")
         sonuc = _supabase_istek(
             f"/rest/v1/{SUPABASE_TABLE}?on_conflict=id",
             method="POST",
@@ -387,8 +394,10 @@ def ayarlari_kaydet(veri: dict):
                 "Prefer": "resolution=merge-duplicates,return=minimal",
             },
         )
-        if sonuc is not None or _supabase_gecici_devre_disi_mi():
+        if sonuc is not None:
+            print("[DEBUG] Ayarlar Supabase'e yazildi")
             return
+        print("[UYARI] Supabase'e yazma basarisiz; yerel fallback dosyaya yaziliyor.")
 
     with _ayar_dosya_kilidi:
         klasor = os.path.dirname(AYAR_DOSYASI)
@@ -1554,6 +1563,7 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_ready():
+    print(f"[DEBUG] Bot acildi | Supabase aktif={supabase_aktif_mi()} | URL={SUPABASE_URL or 'yok'} | Table={SUPABASE_TABLE}")
     # Slash komutlarını Discord'a senkronize et
     try:
         synced = await bot.tree.sync()
