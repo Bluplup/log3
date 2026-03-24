@@ -2169,6 +2169,11 @@ async def gelismis_yardim(ctx):
 
 @bot.command(name="yardım", aliases=["yardim", "help"])
 async def yardim(ctx):
+    if not hasattr(bot, "_help_seen_message_ids"):
+        bot._help_seen_message_ids = set()
+    if ctx.message.id in bot._help_seen_message_ids:
+        return
+    bot._help_seen_message_ids.add(ctx.message.id)
     await gelismis_yardim(ctx)
     return
 
@@ -3633,7 +3638,7 @@ class LevelKurModal(discord.ui.Modal, title="Level Sistemi Kurulumu"):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            kanal_id = int(str(self.kanal_id).strip())
+            kanal_id = int((self.kanal_id.value or "").strip())
         except ValueError:
             await interaction.response.send_message("Gecersiz kanal ID girdin.", ephemeral=True)
             return
@@ -3645,9 +3650,9 @@ class LevelKurModal(discord.ui.Modal, title="Level Sistemi Kurulumu"):
 
         ayar = _level_ayar_al(interaction.guild.id)
         ayar["kanal_id"] = kanal.id
-        ayar["mesaj"] = str(self.mesaj).strip()
+        ayar["mesaj"] = (self.mesaj.value or "").strip()
 
-        gif_raw = str(self.gif_url).strip()
+        gif_raw = (self.gif_url.value or "").strip()
         if gif_raw.lower() in ("", "kapat", "sil", "off", "none"):
             ayar["gif_url"] = None
         else:
@@ -3688,7 +3693,7 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            kanal_id = int(str(self.kanal_id).strip())
+            kanal_id = int((self.kanal_id.value or "").strip())
         except ValueError:
             await interaction.response.send_message("Gecersiz kanal ID girdin.", ephemeral=True)
             return
@@ -3699,7 +3704,7 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
             return
 
         rol_listesi = []
-        rol_ham = str(self.rol_ids).strip()
+        rol_ham = (self.rol_ids.value or "").strip()
         if rol_ham:
             for parca in rol_ham.split(","):
                 parca = parca.strip().replace("<@&", "").replace(">", "")
@@ -3712,10 +3717,10 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
 
         ayar = _welcome_ayar_al(interaction.guild.id)
         ayar["kanal_id"] = kanal.id
-        ayar["mesaj"] = str(self.mesaj).strip()
+        ayar["mesaj"] = (self.mesaj.value or "").strip()
         ayar["rol_ids"] = list(dict.fromkeys(rol_listesi))
 
-        gif_raw = str(self.gif_url).strip()
+        gif_raw = (self.gif_url.value or "").strip()
         if gif_raw.lower() in ("", "kapat", "sil", "off", "none"):
             ayar["gif_url"] = None
         else:
@@ -3730,15 +3735,21 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
 
 class _KurulumView(discord.ui.View):
     def __init__(self, modal_tipi: str):
-        super().__init__(timeout=180)
+        super().__init__(timeout=None)
         self.modal_tipi = modal_tipi
 
     @discord.ui.button(label="Modal Ac", style=discord.ButtonStyle.primary)
     async def modal_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.modal_tipi == "level":
-            await interaction.response.send_modal(LevelKurModal())
-        else:
-            await interaction.response.send_modal(HosgeldinKurModal())
+        try:
+            if self.modal_tipi == "level":
+                await interaction.response.send_modal(LevelKurModal())
+            else:
+                await interaction.response.send_modal(HosgeldinKurModal())
+        except Exception as e:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Modal acilirken hata olustu: {e}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"Modal acilirken hata olustu: {e}", ephemeral=True)
 
 
 @bot.command(name="levelkur")
