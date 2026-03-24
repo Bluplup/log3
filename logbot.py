@@ -18,10 +18,12 @@ Komutlar (Slash komutları):
 import discord
 from discord import app_commands
 from discord.ext import commands
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import json
 import os
+import secrets
+import socket
 import urllib.request
 from flask import Flask
 from threading import Thread
@@ -54,6 +56,8 @@ if not os.path.isabs(AYAR_DOSYASI):
 MONGODB_URI = os.environ.get("MONGODB_URI", "").strip()
 MONGODB_DB = os.environ.get("MONGODB_DB", "logbot")
 MONGODB_COLLECTION = os.environ.get("MONGODB_COLLECTION", "settings")
+# Bu surece ozel ID (loglarda / Mongo heartbeat — baska yerde calisan kopyayi ayirt etmek icin)
+BOT_INSTANCE_ID = secrets.token_hex(8)
 _mongo_collection = None
 _mongo_disabled_until = 0.0
 _mongo_fail_count = 0
@@ -75,6 +79,23 @@ def _mongo_hata_koruma_aktif_et():
     _mongo_disabled_until = time.monotonic() + bekleme
     _mongo_collection = None
     print(f"[UYARI] Mongo gecici devre disi ({bekleme}s), JSON fallback aktif.")
+
+
+def _mongo_kilit_istemci_secenekleri() -> dict:
+    """Sadece prefix kilidi: ana ayarlardan daha kisa timeout (komut gecikmesini azaltir)."""
+    ms = int(os.environ.get("MONGO_LOCK_TIMEOUT_MS", "5000"))
+    opts = {
+        "serverSelectionTimeoutMS": ms,
+        "connectTimeoutMS": ms,
+        "socketTimeoutMS": ms,
+    }
+    ca_manuel = os.environ.get("MONGO_TLS_CA_FILE", "").strip()
+    if ca_manuel and os.path.isfile(ca_manuel):
+        opts["tlsCAFile"] = ca_manuel
+    elif os.environ.get("MONGO_USE_CERTIFI", "1").lower() not in ("0", "false", "hayir", "no"):
+        if certifi is not None:
+            opts["tlsCAFile"] = certifi.where()
+    return opts
 
 
 def _mongo_istemci_secenekleri() -> dict:
@@ -143,7 +164,7 @@ def _mongo_prefix_lock_koleksiyon():
         return _mongo_lock_collection
 
     try:
-        _mongo_lock_only_client = MongoClient(MONGODB_URI, **_mongo_istemci_secenekleri())
+        _mongo_lock_only_client = MongoClient(MONGODB_URI, **_mongo_kilit_istemci_secenekleri())
         _mongo_lock_only_client.admin.command("ping")
         _mongo_lock_collection = _mongo_lock_only_client[MONGODB_DB]["prefix_cmd_locks"]
         return _mongo_lock_collection
@@ -183,16 +204,12 @@ def _prefix_mesaj_kilidi_dene_sync(channel_id: int, message_id: int) -> bool:
     coll = _mongo_prefix_lock_koleksiyon()
     if coll is not None:
         try:
-            r = coll.update_one(
-                {"_id": lock_id},
-                {"$setOnInsert": {"at": datetime.now(timezone.utc)}},
-                upsert=True
-            )
-            return r.upserted_id is not None
+            coll.insert_one({"_id": lock_id, "at": datetime.now(timezone.utc)})
+            return True
         except DuplicateKeyError:
             return False
         except Exception as e:
-            print(f"[UYARI] Prefix kilidi Mongo update: {e}")
+            print(f"[UYARI] Prefix kilidi Mongo insert: {e}")
 
     if _upstash_kilit_env_var_mi():
         try:
@@ -209,6 +226,16 @@ def _prefix_mesaj_kilidi_dene_sync(channel_id: int, message_id: int) -> bool:
     return True
 
 
+def _prefix_dagitik_kilit_istiyor_mu() -> bool:
+    """
+    Varsayilan KAPALI: her komutta Mongo/HTTP round-trip olmaz, cevap hizli olur.
+    Iki ayri bot/deploy ayni mesaja cift cevap veriyorsa Render'da ac:
+        PREFIX_CMD_LOCK=1
+    """
+    v = os.environ.get("PREFIX_CMD_LOCK", os.environ.get("PREFIX_CMD_DEDUP", "")).strip().lower()
+    return v in ("1", "true", "yes", "evet", "on", "acik", "ac")
+
+
 async def _prefix_mesaj_kilidi_dene(channel_id: int, message_id: int) -> bool:
     return await asyncio.to_thread(_prefix_mesaj_kilidi_dene_sync, channel_id, message_id)
 
@@ -221,6 +248,104 @@ def _prefix_lock_ttl_index_olustur():
         coll.create_index("at", expireAfterSeconds=300)
     except Exception as e:
         print(f"[UYARI] prefix_cmd_locks TTL index: {e}")
+
+
+def _bot_surec_log_satirlari() -> list[str]:
+    """Render / lokal konsolda bu sureci tanitmak icin."""
+    parcalar = [f"id={BOT_INSTANCE_ID}", f"pid={os.getpid()}"]
+    try:
+        parcalar.append(f"host={socket.gethostname()[:100]}")
+    except OSError:
+        pass
+    for env_k in ("RENDER_SERVICE_ID", "RENDER_INSTANCE_ID", "FLY_ALLOC_ID", "K_SERVICE", "HOSTNAME"):
+        v = os.environ.get(env_k, "").strip()
+        if v:
+            parcalar.append(f"{env_k}={v[:48]}")
+    return parcalar
+
+
+def _mongo_instance_heartbeat_sync(bot_discord_user_id: int | None) -> tuple[list[dict] | None, str | None]:
+    """
+    Mongo varsa bot_runtime_instances koleksiyonuna kalp atisi yazar,
+    son 2 dakikada gorunen tum surecleri listeler.
+    Donus: (liste, hata_mesaji) — hata varsa liste None.
+    """
+    if not mongo_aktif_mi():
+        return None, "mongo_kapali"
+    coll = mongo_koleksiyon_al()
+    if coll is None:
+        return None, "mongo_baglanamadi"
+    try:
+        db = coll.database
+        hc = db["bot_runtime_instances"]
+        now = datetime.now(timezone.utc)
+        try:
+            host_str = socket.gethostname()[:200]
+        except OSError:
+            host_str = ""
+        hc.update_one(
+            {"_id": BOT_INSTANCE_ID},
+            {
+                "$set": {
+                    "last_seen": now,
+                    "pid": os.getpid(),
+                    "host": host_str,
+                    "discord_bot_user_id": bot_discord_user_id,
+                }
+            },
+            upsert=True,
+        )
+        eski = now - timedelta(minutes=2)
+        aktif = list(
+            hc.find(
+                {"last_seen": {"$gte": eski}},
+                {"_id": 1, "pid": 1, "host": 1, "last_seen": 1, "discord_bot_user_id": 1},
+            )
+        )
+        return aktif, None
+    except Exception as e:
+        return None, str(e)
+
+
+async def _bot_coklu_surec_izleme_dongusu():
+    """Aralikli olarak Mongo'da kac ayri surec oldugunu konsola yazar (Render log)."""
+    await bot.wait_until_ready()
+    ilk_uyarni = True
+    while not bot.is_closed():
+        try:
+            uid = int(bot.user.id) if bot.user else None
+            aktif, hata = await asyncio.to_thread(_mongo_instance_heartbeat_sync, uid)
+            if hata:
+                if hata in ("mongo_kapali", "mongo_baglanamadi"):
+                    if ilk_uyarni:
+                        print(
+                            f"  ℹ️  Coklu-surec izleme: Mongo yok/baglanamadi — baska yerde calisan kopyayi "
+                            f"sadece PID/host satirindan veya sunucudaki bot sayisindan kontrol et."
+                        )
+                        ilk_uyarni = False
+                else:
+                    print(f"  [UYARI] Instance heartbeat Mongo: {hata}")
+            elif aktif is not None:
+                if len(aktif) > 1:
+                    ozet = []
+                    for d in aktif:
+                        iid = str(d.get("_id", ""))[:10]
+                        ozet.append(
+                            f"{iid}.. pid={d.get('pid')} @{str(d.get('host', ''))[:24]}"
+                        )
+                    print(
+                        f"  ⚠️  AYNI MONGO ILE {len(aktif)} AYRI SUREC (son ~2dk) — cift mesaj normal: "
+                        f"{' | '.join(ozet)}"
+                    )
+                elif ilk_uyarni:
+                    print(
+                        f"  ✅ Coklu-surec izleme: Mongo'da son 2 dk icinde yalniz bu instance kayitli "
+                        f"({BOT_INSTANCE_ID[:10]}..)"
+                    )
+                    ilk_uyarni = False
+        except Exception as e:
+            print(f"  [UYARI] Instance izleme dongusu: {e}")
+        await asyncio.sleep(75)
 
 # ─────────────────────────────────────────
 #  SABİT LOG KANALLARI (deploy'dan etkilenmez)
@@ -437,8 +562,10 @@ class PrefixMesajCiftKopya(commands.CheckFailure):
 
 @bot.check
 async def prefix_komut_mesaj_kilidi(ctx: commands.Context):
-    """Ayni mesajda coklu bot sureci / cift deploy icin dagitik kilit (Mongo veya Upstash)."""
+    """Opsiyonel dagitik kilit: PREFIX_CMD_LOCK=1 (cift bot) — varsayilan kapali, hiz icin."""
     if ctx.message is None:
+        return True
+    if not _prefix_dagitik_kilit_istiyor_mu():
         return True
     if not mongo_aktif_mi() and not _upstash_kilit_env_var_mi():
         return True
@@ -1553,7 +1680,7 @@ async def on_ready():
 
     print("━" * 52)
     print(f"  🤖 Bot    : {bot.user} ({bot.user.id})")
-    print(f"  🖥️  Surec  : PID {os.getpid()} (aynı komuta 2 cevap varsa birden fazla deployment/token kontrol et)")
+    print(f"  🖥️  Surec  : {' | '.join(_bot_surec_log_satirlari())}")
     print(f"  📡 Sunucu : {len(bot.guilds)} adet")
     print(f"  ⚙️  Ayarlar: Mongo={'acik' if mongo_aktif_mi() else 'kapali'} | Dosya={AYAR_DOSYASI}")
     print("━" * 52)
@@ -1570,6 +1697,11 @@ async def on_ready():
             name="sunucu loglarını 👁️"
         )
     )
+
+    if not getattr(bot, "_coklu_surec_izleme_baslatildi", False):
+        bot._coklu_surec_izleme_baslatildi = True
+        asyncio.create_task(_bot_coklu_surec_izleme_dongusu())
+
 
 # ═══════════════════════════════════════════════════════════════
 #  PARTNER SİSTEMİ
