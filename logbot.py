@@ -22,10 +22,11 @@ from datetime import datetime, timezone
 import asyncio
 import json
 import os
+import urllib.request
 from flask import Flask
 from threading import Thread
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, DuplicateKeyError
 import time
 
 try:
@@ -121,44 +122,95 @@ def mongo_koleksiyon_al():
 
 
 _mongo_lock_collection = None
+_mongo_lock_only_client = None
+_prefix_kilit_mongo_uyari = False
 
 
 def _mongo_prefix_lock_koleksiyon():
-    """Ayni Discord mesaji icin coklu bot sürecini engellemek (Mongo upsert kilidi)."""
-    global _mongo_lock_collection
-    if not mongo_aktif_mi() or _mongo_gecici_devre_disi_mi():
+    """
+    Prefix komut kilidi: ana ayar baglantisi cooldown'da olsa bile calismali.
+    Once ana istemci; yoksa sadece kilit icin ayri MongoClient.
+    """
+    global _mongo_lock_collection, _mongo_lock_only_client
+    if not mongo_aktif_mi():
         return None
+    if _mongo_lock_collection is not None:
+        return _mongo_lock_collection
+
     ana = mongo_koleksiyon_al()
-    if ana is None:
-        return None
-    if _mongo_lock_collection is None:
+    if ana is not None:
         _mongo_lock_collection = ana.database.client[MONGODB_DB]["prefix_cmd_locks"]
-    return _mongo_lock_collection
+        return _mongo_lock_collection
+
+    try:
+        _mongo_lock_only_client = MongoClient(MONGODB_URI, **_mongo_istemci_secenekleri())
+        _mongo_lock_only_client.admin.command("ping")
+        _mongo_lock_collection = _mongo_lock_only_client[MONGODB_DB]["prefix_cmd_locks"]
+        return _mongo_lock_collection
+    except Exception as e:
+        print(f"[UYARI] Prefix kilidi (ayri Mongo istemci) basarisiz: {e}")
+        return None
 
 
-def _mongo_prefix_kilidi_dene_sync(channel_id: int, message_id: int) -> bool:
+def _upstash_kilit_env_var_mi() -> bool:
+    u = os.environ.get("UPSTASH_REDIS_REST_URL", "").strip()
+    t = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "").strip()
+    return bool(u and t)
+
+
+def _upstash_set_nx_sync(key: str, ex_sn: int = 180) -> bool:
+    url = os.environ["UPSTASH_REDIS_REST_URL"].strip().rstrip("/")
+    token = os.environ["UPSTASH_REDIS_REST_TOKEN"].strip()
+    body = json.dumps(["SET", key, "1", "NX", "EX", str(ex_sn)]).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        out = json.loads(resp.read().decode("utf-8"))
+    return out.get("result") == "OK"
+
+
+def _prefix_mesaj_kilidi_dene_sync(channel_id: int, message_id: int) -> bool:
     """
     True  -> Bu süreç prefix komutunu çalıştırmalı (kilit alındı).
-    False -> Başka bir süreç aynı mesaj için kilidi zaten aldı.
+    False -> Başka bir süreç / bot aynı mesaj için kilidi zaten aldı.
     """
-    coll = _mongo_prefix_lock_koleksiyon()
-    if coll is None:
-        return True
+    global _prefix_kilit_mongo_uyari
     lock_id = f"{channel_id}_{message_id}"
-    try:
-        r = coll.update_one(
-            {"_id": lock_id},
-            {"$setOnInsert": {"at": datetime.now(timezone.utc)}},
-            upsert=True
+    coll = _mongo_prefix_lock_koleksiyon()
+    if coll is not None:
+        try:
+            r = coll.update_one(
+                {"_id": lock_id},
+                {"$setOnInsert": {"at": datetime.now(timezone.utc)}},
+                upsert=True
+            )
+            return r.upserted_id is not None
+        except DuplicateKeyError:
+            return False
+        except Exception as e:
+            print(f"[UYARI] Prefix kilidi Mongo update: {e}")
+
+    if _upstash_kilit_env_var_mi():
+        try:
+            return _upstash_set_nx_sync(f"logbot:pcmd:{lock_id}", ex_sn=180)
+        except Exception as e:
+            print(f"[UYARI] Prefix kilidi Upstash: {e}")
+
+    if not _prefix_kilit_mongo_uyari:
+        _prefix_kilit_mongo_uyari = True
+        print(
+            "[UYARI] Prefix kilidi kapali (Mongo+Upstash yok/bozuk). "
+            "Sunucuda iki ayri Discord BOT UYGULAMASI varsa her ikisi de cevap verir — fazla botu sunucudan at veya tek bot kullan."
         )
-        return r.upserted_id is not None
-    except Exception as e:
-        print(f"[UYARI] Prefix mesaj kilidi Mongo: {e}")
-        return True
+    return True
 
 
-async def _mongo_prefix_kilidi_dene(channel_id: int, message_id: int) -> bool:
-    return await asyncio.to_thread(_mongo_prefix_kilidi_dene_sync, channel_id, message_id)
+async def _prefix_mesaj_kilidi_dene(channel_id: int, message_id: int) -> bool:
+    return await asyncio.to_thread(_prefix_mesaj_kilidi_dene_sync, channel_id, message_id)
 
 
 def _prefix_lock_ttl_index_olustur():
@@ -385,13 +437,13 @@ class PrefixMesajCiftKopya(commands.CheckFailure):
 
 @bot.check
 async def prefix_komut_mesaj_kilidi(ctx: commands.Context):
-    """Render'da iki kopya / iki token ile aynı mesaja çift cevabı önler (Mongo varsa)."""
+    """Ayni mesajda coklu bot sureci / cift deploy icin dagitik kilit (Mongo veya Upstash)."""
     if ctx.message is None:
         return True
-    if not mongo_aktif_mi():
+    if not mongo_aktif_mi() and not _upstash_kilit_env_var_mi():
         return True
     cid = ctx.message.channel.id if ctx.message.channel else 0
-    if await _mongo_prefix_kilidi_dene(cid, ctx.message.id):
+    if await _prefix_mesaj_kilidi_dene(cid, ctx.message.id):
         return True
     raise PrefixMesajCiftKopya()
 
