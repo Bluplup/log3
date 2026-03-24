@@ -55,6 +55,9 @@ BOT_INSTANCE_ID = secrets.token_hex(8)
 _ayar_dosya_kilidi = RLock()
 _supabase_disabled_until = 0.0
 _supabase_fail_count = 0
+_ayar_cache_veri = None
+_ayar_cache_zaman = 0.0
+_AYAR_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "8"))
 
 
 def supabase_aktif_mi() -> bool:
@@ -90,9 +93,7 @@ def _supabase_headers(ekstra: dict | None = None) -> dict:
 
 def _supabase_istek(path: str, method: str = "GET", payload=None, extra_headers: dict | None = None, timeout: int = 20):
     if not supabase_aktif_mi() or _supabase_gecici_devre_disi_mi():
-        print(f"[DEBUG] Supabase istek atlandi | aktif={supabase_aktif_mi()} cooldown={_supabase_gecici_devre_disi_mi()} path={path}")
         return None
-    print(f"[DEBUG] Supabase istek basladi | method={method} path={path}")
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         f"{SUPABASE_URL}{path}",
@@ -105,7 +106,6 @@ def _supabase_istek(path: str, method: str = "GET", payload=None, extra_headers:
             ham = resp.read().decode("utf-8")
         global _supabase_fail_count
         _supabase_fail_count = 0
-        print(f"[DEBUG] Supabase istek basarili | method={method} path={path}")
         return json.loads(ham) if ham else True
     except urllib.error.HTTPError as e:
         try:
@@ -142,11 +142,9 @@ def _supabase_prefix_kilit_ekle_sync(lock_id: str) -> bool | None:
     try:
         with urllib.request.urlopen(req, timeout=10):
             pass
-        print(f"[DEBUG] Prefix kilidi alindi | lock={lock_id} instance={BOT_INSTANCE_ID}")
         return True
     except urllib.error.HTTPError as e:
         if e.code == 409:
-            print(f"[DEBUG] Prefix kilidi baska surecte | lock={lock_id}")
             return False
         try:
             detay = e.read().decode("utf-8", errors="replace")
@@ -378,16 +376,21 @@ def ayarlari_yukle() -> dict:
     Yapı: { "guild_id": { "log_turu": kanal_id, ... }, ... }
     Dosya yoksa boş dict döndürür.
     """
+    global _ayar_cache_veri, _ayar_cache_zaman
+    simdi = time.monotonic()
+    if _ayar_cache_veri is not None and (simdi - _ayar_cache_zaman) < _AYAR_CACHE_TTL:
+        return json.loads(json.dumps(_ayar_cache_veri))
+
     if supabase_aktif_mi():
-        print("[DEBUG] Ayarlar Supabase'ten okunuyor")
         belge = _supabase_istek(
             f"/rest/v1/{SUPABASE_TABLE}?id=eq.global_settings&select=data",
             extra_headers={"Accept": "application/json"},
         )
         if isinstance(belge, list) and belge:
-            print("[DEBUG] Ayarlar Supabase'ten bulundu")
-            return belge[0].get("data", {}) or {}
-        print("[DEBUG] Ayarlar Supabase'te bulunamadi, fallback denenecek")
+            veri = belge[0].get("data", {}) or {}
+            _ayar_cache_veri = veri
+            _ayar_cache_zaman = simdi
+            return json.loads(json.dumps(veri))
 
     with _ayar_dosya_kilidi:
         klasor = os.path.dirname(AYAR_DOSYASI)
@@ -397,7 +400,10 @@ def ayarlari_yukle() -> dict:
             return {}
         try:
             with open(AYAR_DOSYASI, "r", encoding="utf-8") as f:
-                return json.load(f)
+                veri = json.load(f)
+                _ayar_cache_veri = veri
+                _ayar_cache_zaman = simdi
+                return json.loads(json.dumps(veri))
         except json.JSONDecodeError as e:
             print(f"[HATA] settings.json bozuk, bos ayarlarla devam edilecek: {e}")
             return {}
@@ -424,8 +430,8 @@ def varsayilan_kanallari_yukle(guild_id: int):
 
 def ayarlari_kaydet(veri: dict):
     """Tüm ayarları önce Supabase'e, o yoksa yerel dosyaya yazar."""
+    global _ayar_cache_veri, _ayar_cache_zaman
     if supabase_aktif_mi():
-        print(f"[DEBUG] Ayarlar Supabase'e yaziliyor | guild_sayisi={len(veri)}")
         sonuc = _supabase_istek(
             f"/rest/v1/{SUPABASE_TABLE}?on_conflict=id",
             method="POST",
@@ -439,7 +445,8 @@ def ayarlari_kaydet(veri: dict):
             },
         )
         if sonuc is not None:
-            print("[DEBUG] Ayarlar Supabase'e yazildi")
+            _ayar_cache_veri = json.loads(json.dumps(veri))
+            _ayar_cache_zaman = time.monotonic()
             return
         print("[UYARI] Supabase'e yazma basarisiz; yerel fallback dosyaya yaziliyor.")
 
@@ -451,6 +458,8 @@ def ayarlari_kaydet(veri: dict):
         with open(gecici_dosya, "w", encoding="utf-8") as f:
             json.dump(veri, f, indent=2, ensure_ascii=False)
         os.replace(gecici_dosya, AYAR_DOSYASI)
+        _ayar_cache_veri = json.loads(json.dumps(veri))
+        _ayar_cache_zaman = time.monotonic()
 
 
 def ayarlari_guncelle(guncelleyici):
@@ -552,12 +561,6 @@ async def _prefix_komutlari_isle(message: discord.Message):
     bot._prefix_islenen_mesaj_ids.add(mid)
     if len(bot._prefix_islenen_mesaj_ids) > 4000:
         bot._prefix_islenen_mesaj_ids = set(list(bot._prefix_islenen_mesaj_ids)[-2000:])
-    if message.content.startswith(PREFIX):
-        print(
-            f"[DEBUG] Prefix komut isleniyor | instance={BOT_INSTANCE_ID} pid={os.getpid()} "
-            f"guild={getattr(message.guild, 'id', None)} channel={getattr(message.channel, 'id', None)} "
-            f"message={message.id} content={message.content[:120]}"
-        )
     await bot.process_commands(message)
 
 
@@ -1613,7 +1616,6 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_ready():
-    print(f"[DEBUG] Bot acildi | Supabase aktif={supabase_aktif_mi()} | URL={SUPABASE_URL or 'yok'} | Table={SUPABASE_TABLE}")
     # Slash komutlarını Discord'a senkronize et
     try:
         synced = await bot.tree.sync()
