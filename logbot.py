@@ -26,6 +26,7 @@ from flask import Flask
 from threading import Thread
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
+import time
 
 # ─────────────────────────────────────────
 #  AYARLAR
@@ -48,10 +49,26 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "").strip()
 MONGODB_DB = os.environ.get("MONGODB_DB", "logbot")
 MONGODB_COLLECTION = os.environ.get("MONGODB_COLLECTION", "settings")
 _mongo_collection = None
+_mongo_disabled_until = 0.0
+_mongo_fail_count = 0
 
 
 def mongo_aktif_mi() -> bool:
     return bool(MONGODB_URI)
+
+
+def _mongo_gecici_devre_disi_mi() -> bool:
+    return time.monotonic() < _mongo_disabled_until
+
+
+def _mongo_hata_koruma_aktif_et():
+    global _mongo_disabled_until, _mongo_fail_count, _mongo_collection
+    _mongo_fail_count += 1
+    # Hata tekrarladikca bekleme suresini artir, event loop'u bloklamayi kes.
+    bekleme = min(300, 30 * _mongo_fail_count)  # max 5 dk
+    _mongo_disabled_until = time.monotonic() + bekleme
+    _mongo_collection = None
+    print(f"[UYARI] Mongo gecici devre disi ({bekleme}s), JSON fallback aktif.")
 
 
 def mongo_koleksiyon_al():
@@ -60,12 +77,24 @@ def mongo_koleksiyon_al():
         return _mongo_collection
     if not mongo_aktif_mi():
         return None
+    if _mongo_gecici_devre_disi_mi():
+        return None
     try:
-        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        client = MongoClient(
+            MONGODB_URI,
+            serverSelectionTimeoutMS=1200,
+            connectTimeoutMS=1200,
+            socketTimeoutMS=1200
+        )
         _mongo_collection = client[MONGODB_DB][MONGODB_COLLECTION]
+        _mongo_collection.database.client.admin.command("ping")
+        # Basarili baglanti -> hata sayacini sifirla
+        global _mongo_fail_count
+        _mongo_fail_count = 0
         return _mongo_collection
     except Exception as e:
         print(f"[HATA] Mongo baglantisi kurulamadi, JSON fallback kullanilacak: {e}")
+        _mongo_hata_koruma_aktif_et()
         return None
 
 # ─────────────────────────────────────────
@@ -164,8 +193,10 @@ def ayarlari_yukle() -> dict:
             return belge.get("data", {}) or {}
         except PyMongoError as e:
             print(f"[HATA] Mongo'dan ayar okunamadi, JSON fallback: {e}")
+            _mongo_hata_koruma_aktif_et()
         except Exception as e:
             print(f"[HATA] Beklenmeyen Mongo okuma hatasi, JSON fallback: {e}")
+            _mongo_hata_koruma_aktif_et()
 
     klasor = os.path.dirname(AYAR_DOSYASI)
     if klasor:
@@ -208,8 +239,10 @@ def ayarlari_kaydet(veri: dict):
             return
         except PyMongoError as e:
             print(f"[HATA] Mongo'ya ayar yazilamadi, JSON fallback: {e}")
+            _mongo_hata_koruma_aktif_et()
         except Exception as e:
             print(f"[HATA] Beklenmeyen Mongo yazma hatasi, JSON fallback: {e}")
+            _mongo_hata_koruma_aktif_et()
 
     klasor = os.path.dirname(AYAR_DOSYASI)
     if klasor:
