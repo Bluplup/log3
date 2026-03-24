@@ -508,6 +508,12 @@ async def _prefix_komutlari_isle(message: discord.Message):
     bot._prefix_islenen_mesaj_ids.add(mid)
     if len(bot._prefix_islenen_mesaj_ids) > 4000:
         bot._prefix_islenen_mesaj_ids = set(list(bot._prefix_islenen_mesaj_ids)[-2000:])
+    if message.content.startswith(PREFIX):
+        print(
+            f"[DEBUG] Prefix komut isleniyor | instance={BOT_INSTANCE_ID} pid={os.getpid()} "
+            f"guild={getattr(message.guild, 'id', None)} channel={getattr(message.channel, 'id', None)} "
+            f"message={message.id} content={message.content[:120]}"
+        )
     await bot.process_commands(message)
 
 
