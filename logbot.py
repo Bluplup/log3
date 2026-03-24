@@ -2136,8 +2136,8 @@ async def gelismis_yardim(ctx):
         e.add_field(name="Anti-Link", value="`.antilink` ┗ Durum gosterir\n`.antilink ac` ┗ Acar\n`.antilink kapat` ┗ Kapatir\n`.antilink muaf @rol/#kanal` ┗ Muafiyet ekler/kaldirir", inline=False)
         e.add_field(name="Renk Sistemi", value="`.renkekle @rol` ┗ Menuye rol ekler\n`.renkcikar @rol` ┗ Menuden rol cikarir\n`.renklist` ┗ Listedeki rolleri gosterir\n`.renkpanel` ┗ Secim paneli gonderir", inline=False)
         e.add_field(name="Log Sistemi", value="`.logkur` ┗ Otomatik kanal tarar\n`.logkurkanal` ┗ Eksik log kanallarini olusturur\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
-        e.add_field(name="Level Sistemi", value="`.levelkanal #kanal`\n`.levelmesaj <mesaj>`\n`.levelgif <url|kapat>`\n`.leveldurum`\n`.seviye [@uye]`", inline=False)
-        e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkanal #kanal`\n`.hosgeldinmesaj <mesaj>`\n`.hosgeldingif <url|kapat>`\n`.hosgeldinrol @rol` · `.hosgeldinrolsil @rol`\n`.hosgeldinroller` · `.hosgeldindurum`", inline=False)
+        e.add_field(name="Level Sistemi", value="`.levelkur` ┗ Modal ile kurulum\n`.levelkanal #kanal`\n`.levelmesaj <mesaj>`\n`.levelgif <url|kapat>`\n`.levelmesajtest [@uye]`\n`.leveldurum` · `.seviye [@uye]`", inline=False)
+        e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkur` ┗ Modal ile kurulum\n`.hosgeldinkanal #kanal`\n`.hosgeldinmesaj <mesaj>`\n`.hosgeldingif <url|kapat>`\n`.hosgeldinrol @rol` · `.hosgeldinrolsil @rol`\n`.hosgeldinroller` · `.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -2204,8 +2204,8 @@ async def yardim(ctx):
         e.add_field(name="Ticket", value="`.ticketkur [kategori] #log @rol` ┗ Kurar\n`.ticketpanel` ┗ Panel gönderir", inline=False)
         e.add_field(name="Anti-Link", value="`.antilink` ┗ Durum\n`.antilink ac` ┗ Açar\n`.antilink kapat` ┗ Kapatır\n`.antilink muaf @rol/#kanal` ┗ Muafiyet", inline=False)
         e.add_field(name="Log Sistemi", value="`.logkur` · `.logkurkanal`\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
-        e.add_field(name="Level Sistemi", value="`.levelkanal` · `.levelmesaj` · `.levelgif`\n`.leveldurum` · `.seviye`", inline=False)
-        e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkanal` · `.hosgeldinmesaj` · `.hosgeldingif`\n`.hosgeldinrol` · `.hosgeldinrolsil` · `.hosgeldinroller` · `.hosgeldindurum`", inline=False)
+        e.add_field(name="Level Sistemi", value="`.levelkur` · `.levelkanal` · `.levelmesaj` · `.levelgif`\n`.levelmesajtest` · `.leveldurum` · `.seviye`", inline=False)
+        e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkur` · `.hosgeldinkanal` · `.hosgeldinmesaj` · `.hosgeldingif`\n`.hosgeldinrol` · `.hosgeldinrolsil` · `.hosgeldinroller` · `.hosgeldindurum` · `.hosgeldinmesajtest`", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -3605,6 +3605,214 @@ async def log_kur_kanal_olustur(ctx):
     e.add_field(name="Zaten Vardi", value="\n".join(mevcutlar[:20]) if mevcutlar else "Yok", inline=False)
     e.set_footer(text=zaman_damgasi())
     await ctx.send(embed=e)
+
+
+# ─────────────────────────────────────────
+#  MODAL TABANLI LEVEL / HOSGELDIN KURULUMU
+# ─────────────────────────────────────────
+
+class LevelKurModal(discord.ui.Modal, title="Level Sistemi Kurulumu"):
+    kanal_id = discord.ui.TextInput(
+        label="Level duyuru kanal ID",
+        placeholder="Ornek: 123456789012345678",
+        required=True,
+        max_length=25
+    )
+    mesaj = discord.ui.TextInput(
+        label="Level atlama mesaji",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=1000,
+        default="Tebrikler {member_mention}, {level}. seviyeye ulastin!"
+    )
+    gif_url = discord.ui.TextInput(
+        label="GIF URL (opsiyonel, kapat/sil yazarsan temizler)",
+        required=False,
+        max_length=500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            kanal_id = int(str(self.kanal_id).strip())
+        except ValueError:
+            await interaction.response.send_message("Gecersiz kanal ID girdin.", ephemeral=True)
+            return
+
+        kanal = interaction.guild.get_channel(kanal_id) if interaction.guild else None
+        if not isinstance(kanal, discord.TextChannel):
+            await interaction.response.send_message("Bu ID ile metin kanali bulunamadi.", ephemeral=True)
+            return
+
+        ayar = _level_ayar_al(interaction.guild.id)
+        ayar["kanal_id"] = kanal.id
+        ayar["mesaj"] = str(self.mesaj).strip()
+
+        gif_raw = str(self.gif_url).strip()
+        if gif_raw.lower() in ("", "kapat", "sil", "off", "none"):
+            ayar["gif_url"] = None
+        else:
+            ayar["gif_url"] = gif_raw
+
+        _level_ayar_kaydet(interaction.guild.id, ayar)
+        await interaction.response.send_message(
+            f"Level sistemi modal ile kaydedildi.\nKanal: {kanal.mention}",
+            ephemeral=True
+        )
+
+
+class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
+    kanal_id = discord.ui.TextInput(
+        label="Hosgeldin kanal ID",
+        placeholder="Ornek: 123456789012345678",
+        required=True,
+        max_length=25
+    )
+    mesaj = discord.ui.TextInput(
+        label="Hosgeldin mesaji",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=1000,
+        default="Hos geldin {member_mention}! Keyifli vakit gecirmen dilegiyle."
+    )
+    gif_url = discord.ui.TextInput(
+        label="GIF URL (opsiyonel)",
+        required=False,
+        max_length=500
+    )
+    rol_ids = discord.ui.TextInput(
+        label="Etiket rol ID'leri (virgulle, opsiyonel)",
+        placeholder="123,456,789",
+        required=False,
+        max_length=300
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            kanal_id = int(str(self.kanal_id).strip())
+        except ValueError:
+            await interaction.response.send_message("Gecersiz kanal ID girdin.", ephemeral=True)
+            return
+
+        kanal = interaction.guild.get_channel(kanal_id) if interaction.guild else None
+        if not isinstance(kanal, discord.TextChannel):
+            await interaction.response.send_message("Bu ID ile metin kanali bulunamadi.", ephemeral=True)
+            return
+
+        rol_listesi = []
+        rol_ham = str(self.rol_ids).strip()
+        if rol_ham:
+            for parca in rol_ham.split(","):
+                parca = parca.strip().replace("<@&", "").replace(">", "")
+                if not parca:
+                    continue
+                if parca.isdigit():
+                    rid = int(parca)
+                    if interaction.guild.get_role(rid):
+                        rol_listesi.append(rid)
+
+        ayar = _welcome_ayar_al(interaction.guild.id)
+        ayar["kanal_id"] = kanal.id
+        ayar["mesaj"] = str(self.mesaj).strip()
+        ayar["rol_ids"] = list(dict.fromkeys(rol_listesi))
+
+        gif_raw = str(self.gif_url).strip()
+        if gif_raw.lower() in ("", "kapat", "sil", "off", "none"):
+            ayar["gif_url"] = None
+        else:
+            ayar["gif_url"] = gif_raw
+
+        _welcome_ayar_kaydet(interaction.guild.id, ayar)
+        await interaction.response.send_message(
+            f"Hosgeldin sistemi modal ile kaydedildi.\nKanal: {kanal.mention}",
+            ephemeral=True
+        )
+
+
+class _KurulumView(discord.ui.View):
+    def __init__(self, modal_tipi: str):
+        super().__init__(timeout=180)
+        self.modal_tipi = modal_tipi
+
+    @discord.ui.button(label="Modal Ac", style=discord.ButtonStyle.primary)
+    async def modal_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.modal_tipi == "level":
+            await interaction.response.send_modal(LevelKurModal())
+        else:
+            await interaction.response.send_modal(HosgeldinKurModal())
+
+
+@bot.command(name="levelkur")
+@commands.has_permissions(manage_guild=True)
+async def level_kur_modal(ctx):
+    e = discord.Embed(
+        title="Level Sistemi Kurulumu",
+        description="Asagidaki butona tikla, ayarlari modal uzerinden gir.",
+        color=RENKLER["bilgi"]
+    )
+    await ctx.send(embed=e, view=_KurulumView("level"))
+
+
+@bot.command(name="hosgeldinkur")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_kur_modal(ctx):
+    e = discord.Embed(
+        title="Hosgeldin Sistemi Kurulumu",
+        description="Asagidaki butona tikla, ayarlari modal uzerinden gir.",
+        color=RENKLER["bilgi"]
+    )
+    await ctx.send(embed=e, view=_KurulumView("hosgeldin"))
+
+
+@bot.command(name="levelmesajtest")
+@commands.has_permissions(manage_guild=True)
+async def level_mesaj_test(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    ayar = _level_ayar_al(ctx.guild.id)
+    aciklama = _sablon_doldur(ayar.get("mesaj", "Tebrikler {member_mention}, {level}. seviye oldun!"), hedef, level=5, xp=42)
+    e = discord.Embed(
+        title="Seviye Atladin! (Test)",
+        description=aciklama,
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.add_field(name="Yeni Level", value="**5**", inline=True)
+    e.add_field(name="Kalan XP", value="**42 / 475**", inline=True)
+    if ayar.get("gif_url"):
+        e.set_image(url=ayar["gif_url"])
+    if hedef.display_avatar:
+        e.set_thumbnail(url=hedef.display_avatar.url)
+    e.set_footer(text=zaman_damgasi())
+    await ctx.send(hedef.mention, embed=e)
+
+
+@bot.command(name="hosgeldinmesajtest")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_mesaj_test(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    ayar = _welcome_ayar_al(ctx.guild.id)
+
+    rol_mentionlari = []
+    for rid in ayar.get("rol_ids", []):
+        rol = ctx.guild.get_role(rid)
+        if rol:
+            rol_mentionlari.append(rol.mention)
+
+    ust_metin = hedef.mention
+    if rol_mentionlari:
+        ust_metin += " " + " ".join(rol_mentionlari)
+
+    e = discord.Embed(
+        title="Hos Geldin! (Test)",
+        description=_sablon_doldur(ayar.get("mesaj", "Hos geldin {member_mention}!"), hedef),
+        color=RENKLER["giris"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    if ayar.get("gif_url"):
+        e.set_image(url=ayar["gif_url"])
+    if hedef.display_avatar:
+        e.set_thumbnail(url=hedef.display_avatar.url)
+    e.set_footer(text=zaman_damgasi())
+    await ctx.send(ust_metin, embed=e)
 
 
 app = Flask(__name__)
