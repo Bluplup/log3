@@ -1,4 +1,0 @@
-pymongo[srv]==3.12
-flask
-discord.py
-certifi
