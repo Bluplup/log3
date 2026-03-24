@@ -121,6 +121,44 @@ def _supabase_istek(path: str, method: str = "GET", payload=None, extra_headers:
         return None
 
 
+def _supabase_prefix_kilit_ekle_sync(lock_id: str) -> bool | None:
+    if not supabase_aktif_mi() or _supabase_gecici_devre_disi_mi():
+        return None
+    payload = [{
+        "id": f"lock:{lock_id}",
+        "data": {
+            "type": "prefix_lock",
+            "instance": BOT_INSTANCE_ID,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        },
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }]
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers=_supabase_headers({"Prefer": "return=minimal"}),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+        print(f"[DEBUG] Prefix kilidi alindi | lock={lock_id} instance={BOT_INSTANCE_ID}")
+        return True
+    except urllib.error.HTTPError as e:
+        if e.code == 409:
+            print(f"[DEBUG] Prefix kilidi baska surecte | lock={lock_id}")
+            return False
+        try:
+            detay = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            detay = str(e)
+        print(f"[UYARI] Supabase prefix kilidi HTTP {e.code}: {detay}")
+        return None
+    except Exception as e:
+        print(f"[UYARI] Supabase prefix kilidi baglanti hatasi: {e}")
+        return None
+
+
 _prefix_kilit_mongo_uyari = False
 
 
@@ -156,6 +194,10 @@ def _prefix_mesaj_kilidi_dene_sync(channel_id: int, message_id: int) -> bool:
     """
     global _prefix_kilit_mongo_uyari
     lock_id = f"{channel_id}_{message_id}"
+    supabase_sonuc = _supabase_prefix_kilit_ekle_sync(lock_id)
+    if supabase_sonuc is not None:
+        return supabase_sonuc
+
     if _upstash_kilit_env_var_mi():
         try:
             return _upstash_set_nx_sync(f"logbot:pcmd:{lock_id}", ex_sn=180)
@@ -178,7 +220,9 @@ def _prefix_dagitik_kilit_istiyor_mu() -> bool:
         PREFIX_CMD_LOCK=1
     """
     v = os.environ.get("PREFIX_CMD_LOCK", os.environ.get("PREFIX_CMD_DEDUP", "")).strip().lower()
-    return v in ("1", "true", "yes", "evet", "on", "acik", "ac")
+    if v in ("1", "true", "yes", "evet", "on", "acik", "ac"):
+        return True
+    return supabase_aktif_mi() or _upstash_kilit_env_var_mi()
 
 
 async def _prefix_mesaj_kilidi_dene(channel_id: int, message_id: int) -> bool:
