@@ -28,6 +28,11 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 import time
 
+try:
+    import certifi
+except ImportError:
+    certifi = None
+
 # ─────────────────────────────────────────
 #  AYARLAR
 # ─────────────────────────────────────────
@@ -71,6 +76,28 @@ def _mongo_hata_koruma_aktif_et():
     print(f"[UYARI] Mongo gecici devre disi ({bekleme}s), JSON fallback aktif.")
 
 
+def _mongo_istemci_secenekleri() -> dict:
+    """
+    Atlas TLS + Render/Python 3.14 ile görülen 'TLSV1_ALERT_INTERNAL_ERROR' için:
+    - CA zincirini certifi ile sabitle
+    - TLS el sıkışması için süreleri kısa tutma (1200ms Atlas'ta yetmeyebilir)
+    """
+    env = os.environ
+    ms = int(env.get("MONGO_TIMEOUT_MS", "20000"))
+    opts = {
+        "serverSelectionTimeoutMS": ms,
+        "connectTimeoutMS": ms,
+        "socketTimeoutMS": ms,
+    }
+    ca_manuel = env.get("MONGO_TLS_CA_FILE", "").strip()
+    if ca_manuel and os.path.isfile(ca_manuel):
+        opts["tlsCAFile"] = ca_manuel
+    elif env.get("MONGO_USE_CERTIFI", "1").lower() not in ("0", "false", "hayir", "no"):
+        if certifi is not None:
+            opts["tlsCAFile"] = certifi.where()
+    return opts
+
+
 def mongo_koleksiyon_al():
     global _mongo_collection
     if _mongo_collection is not None:
@@ -80,12 +107,7 @@ def mongo_koleksiyon_al():
     if _mongo_gecici_devre_disi_mi():
         return None
     try:
-        client = MongoClient(
-            MONGODB_URI,
-            serverSelectionTimeoutMS=1200,
-            connectTimeoutMS=1200,
-            socketTimeoutMS=1200
-        )
+        client = MongoClient(MONGODB_URI, **_mongo_istemci_secenekleri())
         _mongo_collection = client[MONGODB_DB][MONGODB_COLLECTION]
         _mongo_collection.database.client.admin.command("ping")
         # Basarili baglanti -> hata sayacini sifirla
@@ -96,6 +118,57 @@ def mongo_koleksiyon_al():
         print(f"[HATA] Mongo baglantisi kurulamadi, JSON fallback kullanilacak: {e}")
         _mongo_hata_koruma_aktif_et()
         return None
+
+
+_mongo_lock_collection = None
+
+
+def _mongo_prefix_lock_koleksiyon():
+    """Ayni Discord mesaji icin coklu bot sürecini engellemek (Mongo upsert kilidi)."""
+    global _mongo_lock_collection
+    if not mongo_aktif_mi() or _mongo_gecici_devre_disi_mi():
+        return None
+    ana = mongo_koleksiyon_al()
+    if ana is None:
+        return None
+    if _mongo_lock_collection is None:
+        _mongo_lock_collection = ana.database.client[MONGODB_DB]["prefix_cmd_locks"]
+    return _mongo_lock_collection
+
+
+def _mongo_prefix_kilidi_dene_sync(channel_id: int, message_id: int) -> bool:
+    """
+    True  -> Bu süreç prefix komutunu çalıştırmalı (kilit alındı).
+    False -> Başka bir süreç aynı mesaj için kilidi zaten aldı.
+    """
+    coll = _mongo_prefix_lock_koleksiyon()
+    if coll is None:
+        return True
+    lock_id = f"{channel_id}_{message_id}"
+    try:
+        r = coll.update_one(
+            {"_id": lock_id},
+            {"$setOnInsert": {"at": datetime.now(timezone.utc)}},
+            upsert=True
+        )
+        return r.upserted_id is not None
+    except Exception as e:
+        print(f"[UYARI] Prefix mesaj kilidi Mongo: {e}")
+        return True
+
+
+async def _mongo_prefix_kilidi_dene(channel_id: int, message_id: int) -> bool:
+    return await asyncio.to_thread(_mongo_prefix_kilidi_dene_sync, channel_id, message_id)
+
+
+def _prefix_lock_ttl_index_olustur():
+    coll = _mongo_prefix_lock_koleksiyon()
+    if coll is None:
+        return
+    try:
+        coll.create_index("at", expireAfterSeconds=300)
+    except Exception as e:
+        print(f"[UYARI] prefix_cmd_locks TTL index: {e}")
 
 # ─────────────────────────────────────────
 #  SABİT LOG KANALLARI (deploy'dan etkilenmez)
@@ -305,10 +378,38 @@ PREFIX = os.environ.get("BOT_PREFIX", ".")
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents, case_insensitive=True, help_command=None)
 
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        return  # Bilinmeyen komutları sessizce geç
+
+class PrefixMesajCiftKopya(commands.CheckFailure):
+    """Aynı Discord mesajı için başka bir bot süreci prefix komutunu zaten işledi."""
+
+
+@bot.check
+async def prefix_komut_mesaj_kilidi(ctx: commands.Context):
+    """Render'da iki kopya / iki token ile aynı mesaja çift cevabı önler (Mongo varsa)."""
+    if ctx.message is None:
+        return True
+    if not mongo_aktif_mi():
+        return True
+    cid = ctx.message.channel.id if ctx.message.channel else 0
+    if await _mongo_prefix_kilidi_dene(cid, ctx.message.id):
+        return True
+    raise PrefixMesajCiftKopya()
+
+
+async def _prefix_komutlari_isle(message: discord.Message):
+    """
+    Ayni Discord mesaji icin process_commands yalnizca bir kez calisir.
+    Cift yanit (kayitli + bos) sorununu genelde bu tur cift cagri olusturur.
+    """
+    if not hasattr(bot, "_prefix_islenen_mesaj_ids"):
+        bot._prefix_islenen_mesaj_ids = set()
+    mid = message.id
+    if mid in bot._prefix_islenen_mesaj_ids:
+        return
+    bot._prefix_islenen_mesaj_ids.add(mid)
+    if len(bot._prefix_islenen_mesaj_ids) > 4000:
+        bot._prefix_islenen_mesaj_ids = set(list(bot._prefix_islenen_mesaj_ids)[-2000:])
+    await bot.process_commands(message)
 
 
 # ─────────────────────────────────────────
@@ -1351,6 +1452,8 @@ async def on_command_error(ctx, error):
     """CommandNotFound ve diğer bilinen hataları sessizce geçer."""
     if isinstance(error, commands.CommandNotFound):
         return  # Bilinmeyen komutları yoksay
+    if isinstance(error, PrefixMesajCiftKopya):
+        return  # Çift bot süreci: ikinci kopya sessizce yoksayılır
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Bu komutu kullanmak için yetkin yok.")
     elif isinstance(error, commands.MemberNotFound):
@@ -1376,6 +1479,10 @@ async def on_ready():
         bot.add_view(TicketControlView())
         bot._persistent_views_registered = True
 
+    if mongo_aktif_mi() and not getattr(bot, "_prefix_lock_index_ok", False):
+        await asyncio.to_thread(_prefix_lock_ttl_index_olustur)
+        bot._prefix_lock_index_ok = True
+
     for guild in bot.guilds:
         ayarlar = ayarlari_yukle()
         gk = str(guild.id)
@@ -1394,8 +1501,9 @@ async def on_ready():
 
     print("━" * 52)
     print(f"  🤖 Bot    : {bot.user} ({bot.user.id})")
+    print(f"  🖥️  Surec  : PID {os.getpid()} (aynı komuta 2 cevap varsa birden fazla deployment/token kontrol et)")
     print(f"  📡 Sunucu : {len(bot.guilds)} adet")
-    print(f"  ⚙️  Ayarlar: {AYAR_DOSYASI}")
+    print(f"  ⚙️  Ayarlar: Mongo={'acik' if mongo_aktif_mi() else 'kapali'} | Dosya={AYAR_DOSYASI}")
     print("━" * 52)
     print("  Kullanılabilir slash komutları:")
     print("    /log-kur <tür> <kanal>  → Kanal ata")
@@ -2390,7 +2498,7 @@ async def on_message(message: discord.Message):
     Partner kanalı mesaj kontrolü + AFK + Anti-link + prefix komutları
     """
     if message.author.bot:
-        await bot.process_commands(message)
+        await _prefix_komutlari_isle(message)
         return
 
     if message.guild:
@@ -2568,7 +2676,7 @@ async def on_message(message: discord.Message):
                         pass
                     return
 
-    await bot.process_commands(message)
+    await _prefix_komutlari_isle(message)
 
 
 # ═══════════════════════════════════════════════════════════════
