@@ -24,6 +24,8 @@ import json
 import os
 from flask import Flask
 from threading import Thread
+from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 # ─────────────────────────────────────────
 #  AYARLAR
@@ -36,7 +38,35 @@ from threading import Thread
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "") or os.environ.get("DISCORD_TOKEN", "")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN veya DISCORD_TOKEN environment variable ayarlanmamis! Render'da Environment sekmesine ekle.")
-AYAR_DOSYASI = "settings.json"      # Kanal ID'leri burada saklanır
+# Kalici ayar depolama:
+# - MONGODB_URI varsa ayarlar MongoDB Atlas'ta tutulur (onerilen, ucretsiz)
+# - Yoksa settings.json dosyasi kullanilir
+AYAR_DOSYASI = os.environ.get("SETTINGS_PATH", "/opt/render/project/src/data/settings.json")
+if not os.path.isabs(AYAR_DOSYASI):
+    AYAR_DOSYASI = os.path.abspath(AYAR_DOSYASI)
+MONGODB_URI = os.environ.get("MONGODB_URI", "").strip()
+MONGODB_DB = os.environ.get("MONGODB_DB", "logbot")
+MONGODB_COLLECTION = os.environ.get("MONGODB_COLLECTION", "settings")
+_mongo_collection = None
+
+
+def mongo_aktif_mi() -> bool:
+    return bool(MONGODB_URI)
+
+
+def mongo_koleksiyon_al():
+    global _mongo_collection
+    if _mongo_collection is not None:
+        return _mongo_collection
+    if not mongo_aktif_mi():
+        return None
+    try:
+        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+        _mongo_collection = client[MONGODB_DB][MONGODB_COLLECTION]
+        return _mongo_collection
+    except Exception as e:
+        print(f"[HATA] Mongo baglantisi kurulamadi, JSON fallback kullanilacak: {e}")
+        return None
 
 # ─────────────────────────────────────────
 #  SABİT LOG KANALLARI (deploy'dan etkilenmez)
@@ -125,6 +155,21 @@ def ayarlari_yukle() -> dict:
     Yapı: { "guild_id": { "log_turu": kanal_id, ... }, ... }
     Dosya yoksa boş dict döndürür.
     """
+    koleksiyon = mongo_koleksiyon_al()
+    if koleksiyon is not None:
+        try:
+            belge = koleksiyon.find_one({"_id": "global_settings"})
+            if not belge:
+                return {}
+            return belge.get("data", {}) or {}
+        except PyMongoError as e:
+            print(f"[HATA] Mongo'dan ayar okunamadi, JSON fallback: {e}")
+        except Exception as e:
+            print(f"[HATA] Beklenmeyen Mongo okuma hatasi, JSON fallback: {e}")
+
+    klasor = os.path.dirname(AYAR_DOSYASI)
+    if klasor:
+        os.makedirs(klasor, exist_ok=True)
     if not os.path.exists(AYAR_DOSYASI):
         return {}
     with open(AYAR_DOSYASI, "r", encoding="utf-8") as f:
@@ -152,6 +197,23 @@ def varsayilan_kanallari_yukle(guild_id: int):
 
 def ayarlari_kaydet(veri: dict):
     """Tüm ayarları settings.json dosyasına yazar."""
+    koleksiyon = mongo_koleksiyon_al()
+    if koleksiyon is not None:
+        try:
+            koleksiyon.update_one(
+                {"_id": "global_settings"},
+                {"$set": {"data": veri, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True
+            )
+            return
+        except PyMongoError as e:
+            print(f"[HATA] Mongo'ya ayar yazilamadi, JSON fallback: {e}")
+        except Exception as e:
+            print(f"[HATA] Beklenmeyen Mongo yazma hatasi, JSON fallback: {e}")
+
+    klasor = os.path.dirname(AYAR_DOSYASI)
+    if klasor:
+        os.makedirs(klasor, exist_ok=True)
     with open(AYAR_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veri, f, indent=2, ensure_ascii=False)
 
