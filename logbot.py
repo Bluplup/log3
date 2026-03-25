@@ -1899,6 +1899,33 @@ async def partner_kur(ctx, text_kanal: discord.TextChannel = None, log_kanal: di
     ))
 
 
+@bot.command(name="partner-kapat", aliases=["partner-off", "partnerkapat"])
+@commands.has_permissions(manage_guild=True)
+async def partner_kapat(ctx):
+    """.partner-kapat — Partner sisteminin kanal ayarlarini kapatir."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+
+    onceki_text = sunucu_ayari.pop("partner_kanal", None)
+    onceki_log = sunucu_ayari.pop("partner_log", None)
+    ayarlari_kaydet(ayarlar)
+
+    text_kanal = ctx.guild.get_channel(onceki_text) if onceki_text else None
+    log_kanal = ctx.guild.get_channel(onceki_log) if onceki_log else None
+
+    embed = discord.Embed(
+        title="Partner Sistemi Kapatildi",
+        description="Partner sistemi devre disi birakildi. Kayitli istatistikler silinmedi.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Eski Text Kanal", value=text_kanal.mention if text_kanal else "Yok", inline=True)
+    embed.add_field(name="Eski Log Kanal", value=log_kanal.mention if log_kanal else "Yok", inline=True)
+    embed.set_footer(text=f"Kapatan: {ctx.author}")
+    await ctx.send(embed=embed)
+
+
 @bot.command(name="partner-istatistik", aliases=["p-istat", "pistat"])
 @commands.has_permissions(manage_guild=True)
 async def partner_istatistik(ctx):
@@ -2656,7 +2683,7 @@ async def gelismis_yardim_v3(ctx):
     def partner_embed():
         e = embed_taban("Partner Sistemi", "Partner kaydi, takip ve siralama komutlari.", 0x57F287)
         e.add_field(name="Kurulum", value="`.partner-kur #text #log`", inline=False)
-        e.add_field(name="Takip ve Rapor", value="`.partner-istatistik`\n`.partner-top`\n`.partner-liste`\n`.partner-sifirla`", inline=False)
+        e.add_field(name="Takip ve Rapor", value="`.partner-istatistik`\n`.partner-top`\n`.partner-liste`\n`.partner-kapat`\n`.partner-sifirla`", inline=False)
         e.add_field(name="Calisma Mantigi", value="Partner kanalina gecerli davet linki atilir.\nBot kaydi tutar ve ayni sunucu icin 1 saat bekleme uygular.", inline=False)
         return e
 
