@@ -5064,6 +5064,12 @@ async def level_mesaj_test(ctx, uye: discord.Member = None):
 async def hosgeldin_mesaj_test(ctx, uye: discord.Member = None):
     hedef = uye or ctx.author
     ayar = _welcome_ayar_al(ctx.guild.id)
+    kanal_id = ayar.get("kanal_id")
+    kanal = ctx.guild.get_channel(kanal_id) if kanal_id else None
+
+    if kanal_id and not isinstance(kanal, discord.TextChannel):
+        await ctx.send("Ayarlı hoşgeldin kanalı bulunamadı. `.hosgeldinkur` ile sistemi tekrar kur.")
+        return
 
     rol_mentionlari = []
     for rid in ayar.get("rol_ids", []):
@@ -5086,7 +5092,15 @@ async def hosgeldin_mesaj_test(ctx, uye: discord.Member = None):
     if hedef.display_avatar:
         e.set_thumbnail(url=hedef.display_avatar.url)
     e.set_footer(text=zaman_damgasi())
-    await ctx.send(ust_metin, embed=e)
+    hedef_kanal = kanal or ctx.channel
+    try:
+        await hedef_kanal.send(ust_metin, embed=e)
+    except discord.Forbidden:
+        await ctx.send("Test mesajı gönderilemedi; botun hedef kanalda yazma yetkisi yok.")
+        return
+
+    if hedef_kanal.id != ctx.channel.id:
+        await ctx.send(f"Hoşgeldin test mesajı {hedef_kanal.mention} kanalına gönderildi.", delete_after=8)
 
 
 app = Flask(__name__)
