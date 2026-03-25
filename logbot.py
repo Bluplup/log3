@@ -2778,7 +2778,7 @@ async def gelismis_yardim_v3(ctx):
         e.add_field(name="Log", value="`.logkur`\n`.logkurkanal`\n`/log-kur` • `/log-kaldir`\n`/log-durum` • `/log-sifirla`", inline=False)
         e.add_field(name="Level", value="`.levelkur`\n`.levelrol <seviye> @rol`\n`.levelrolsil <seviye>`\n`.levelrolleri`\n`.levelmesajtest [@uye]`\n`.leveldurum` • `.seviye [@uye]`", inline=False)
         e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
-        e.add_field(name="Diger Sistemler", value="`.antilink`\n`.antilink ac`\n`.antilink kapat`\n`.antilink muaf @rol/#kanal`\n`.renkekle @rol` • `.renkcikar @rol`\n`.renklist` • `.renkpanel`", inline=False)
+        e.add_field(name="Diger Sistemler", value="`.antilink`\n`.antilink ac`\n`.antilink kapat`\n`.antilink muaf @rol/#kanal`\n`.renkekle @rol` • `.renkcikar @rol`\n`.renklist` • `.renkpanel`\n`.guvenlikkur` • `.guvenlikdurum`\n`.guvenlikizin @uye/@rol` • `.guvenlikizinsil @uye/@rol`", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -4363,6 +4363,11 @@ def _kanal_id_coz(raw: str) -> int | None:
     return int(ham) if ham.isdigit() else None
 
 
+def _gecerli_http_url_mu(raw: str) -> bool:
+    ham = (raw or "").strip()
+    return ham.startswith("http://") or ham.startswith("https://")
+
+
 def _hosgeldin_icerigi_hazirla(uye: discord.Member, ayar: dict) -> tuple[str, discord.Embed]:
     rol_mentionlari = []
     for rol_id in ayar.get("rol_ids", []):
@@ -4380,7 +4385,7 @@ def _hosgeldin_icerigi_hazirla(uye: discord.Member, ayar: dict) -> tuple[str, di
         color=RENKLER["giris"],
         timestamp=datetime.now(timezone.utc)
     )
-    if ayar.get("gif_url"):
+    if _gecerli_http_url_mu(ayar.get("gif_url")):
         e.set_image(url=ayar["gif_url"])
     if uye.display_avatar:
         e.set_thumbnail(url=uye.display_avatar.url)
