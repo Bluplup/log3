@@ -1042,23 +1042,33 @@ async def komut_hata(interaction: discord.Interaction, error: app_commands.AppCo
 @bot.event
 async def on_member_ban(guild: discord.Guild, user: discord.User):
     sorumlu = await audit_log_bul(guild, discord.AuditLogAction.ban, hedef=user)
-
-    embed = discord.Embed(title="🔨 Üye Banlandı", color=RENKLER["ban"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="👤 Kullanıcı",    value=f"{user.mention} `{user}`",                   inline=True)
-    embed.add_field(name="🆔 ID",            value=f"`{user.id}`",                               inline=True)
-    embed.add_field(name="🛡️ İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed = discord.Embed(
+        title="Üye Banlandı",
+        description=f"{user.mention} sunucudan yasaklandı.",
+        color=RENKLER["ban"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Kullanıcı", value=f"`{user}`", inline=True)
+    embed.add_field(name="Kullanıcı ID", value=f"`{user.id}`", inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
     embed.set_thumbnail(url=user.display_avatar.url)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(guild, "ban_log", embed)
+    await _guvenlik_eylem_isle(guild, sorumlu, "ban", f"{user} ({user.id})", _guvenlik_ayar_al(guild.id).get("ban_limit", 3))
 
 
 @bot.event
 async def on_member_unban(guild: discord.Guild, user: discord.User):
     sorumlu = await audit_log_bul(guild, discord.AuditLogAction.unban, hedef=user)
-
-    embed = discord.Embed(title="✅ Ban Kaldırıldı", color=RENKLER["unban"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="👤 Kullanıcı",    value=f"{user.mention} `{user}`",                   inline=True)
-    embed.add_field(name="🛡️ İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed = discord.Embed(
+        title="Ban Kaldırıldı",
+        description=f"{user.mention} yeniden sunucuya katılabilir.",
+        color=RENKLER["unban"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Kullanıcı", value=f"`{user}`", inline=True)
+    embed.add_field(name="Kullanıcı ID", value=f"`{user.id}`", inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(guild, "ban_log", embed)
 
@@ -1079,15 +1089,27 @@ async def on_member_remove(member: discord.Member):
     sorumlu = await audit_log_bul(member.guild, discord.AuditLogAction.kick, hedef=member)
 
     if sorumlu:
-        embed = discord.Embed(title="👢 Üye Atıldı (Kick)", color=RENKLER["mute"], timestamp=datetime.now(timezone.utc))
-        embed.add_field(name="👤 Kullanıcı",    value=f"{member.mention} `{member}`", inline=True)
-        embed.add_field(name="🛡️ İşlemi Yapan", value=sorumlu.mention,                inline=True)
+        embed = discord.Embed(
+            title="Üye Atıldı",
+            description=f"{member.mention} sunucudan atıldı.",
+            color=RENKLER["mute"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Kullanıcı", value=f"`{member}`", inline=True)
+        embed.add_field(name="Kullanıcı ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(name="İşlemi Yapan", value=sorumlu.mention, inline=True)
         embed.set_footer(text=zaman_damgasi())
         await log_gonder(member.guild, "mod_log", embed)
+        await _guvenlik_eylem_isle(member.guild, sorumlu, "kick", f"{member} ({member.id})", _guvenlik_ayar_al(member.guild.id).get("kick_limit", 3))
     else:
-        embed = discord.Embed(title="🚪 Üye Ayrıldı", color=RENKLER["cikis"], timestamp=datetime.now(timezone.utc))
-        embed.add_field(name="👤 Kullanıcı", value=f"`{member}`",    inline=True)
-        embed.add_field(name="🆔 ID",        value=f"`{member.id}`", inline=True)
+        embed = discord.Embed(
+            title="Üye Ayrıldı",
+            description=f"{member.mention} sunucudan ayrıldı.",
+            color=RENKLER["cikis"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Kullanıcı", value=f"`{member}`", inline=True)
+        embed.add_field(name="Kullanıcı ID", value=f"`{member.id}`", inline=True)
         embed.set_footer(text=zaman_damgasi())
         await log_gonder(member.guild, "giris_cikis", embed)
 
@@ -1197,10 +1219,16 @@ async def on_message_delete(message: discord.Message):
     if message.author.bot:
         return
 
-    embed = discord.Embed(title="🗑️ Mesaj Silindi", color=RENKLER["mesaj"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="👤 Yazar",  value=f"{message.author.mention} `{message.author}`", inline=True)
-    embed.add_field(name="📍 Kanal", value=message.channel.mention,                          inline=True)
-    embed.add_field(name="💬 İçerik", value=message.content[:1024] or "*[Boş veya medya]*",  inline=False)
+    embed = discord.Embed(
+        title="Mesaj Silindi",
+        description="Bir mesaj kanaldan kaldırıldı.",
+        color=RENKLER["mesaj"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Yazar", value=f"{message.author.mention} • `{message.author.id}`", inline=True)
+    embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
+    embed.add_field(name="Mesaj ID", value=f"`{message.id}`", inline=True)
+    embed.add_field(name="İçerik", value=message.content[:1024] or "*[Boş mesaj veya sadece medya]*", inline=False)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(message.guild, "mesaj_log", embed)
 
@@ -1210,11 +1238,17 @@ async def on_message_edit(onceki: discord.Message, sonraki: discord.Message):
     if onceki.author.bot or onceki.content == sonraki.content:
         return
 
-    embed = discord.Embed(title="✏️ Mesaj Düzenlendi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="👤 Yazar",      value=sonraki.author.mention,       inline=True)
-    embed.add_field(name="📍 Kanal",      value=sonraki.channel.mention,       inline=True)
-    embed.add_field(name="📄 Eski Mesaj", value=onceki.content[:512] or "—",  inline=False)
-    embed.add_field(name="📝 Yeni Mesaj", value=sonraki.content[:512] or "—", inline=False)
+    embed = discord.Embed(
+        title="Mesaj Düzenlendi",
+        description=f"[Mesaja git]({sonraki.jump_url})",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Yazar", value=f"{sonraki.author.mention} • `{sonraki.author.id}`", inline=True)
+    embed.add_field(name="Kanal", value=sonraki.channel.mention, inline=True)
+    embed.add_field(name="Mesaj ID", value=f"`{sonraki.id}`", inline=True)
+    embed.add_field(name="Eski Mesaj", value=onceki.content[:512] or "—", inline=False)
+    embed.add_field(name="Yeni Mesaj", value=sonraki.content[:512] or "—", inline=False)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(sonraki.guild, "mesaj_log", embed)
 
@@ -1356,25 +1390,26 @@ async def on_member_update(onceki: discord.Member, sonraki: discord.Member):
 async def on_invite_create(invite: discord.Invite):
     """Yeni bir davet bağlantısı oluşturulduğunda tetiklenir."""
     embed = discord.Embed(
-        title="✉️ Yeni Davet Oluşturuldu",
+        title="Yeni Davet Oluşturuldu",
+        description="Sunucuda yeni bir davet bağlantısı üretildi.",
         color=RENKLER["bilgi"],
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="👤 Oluşturan",   value=invite.inviter.mention if invite.inviter else "Bilinmiyor", inline=True)
-    embed.add_field(name="📍 Kanal",        value=invite.channel.mention if invite.channel else "—",         inline=True)
-    embed.add_field(name="🔗 Davet Kodu",   value=f"`{invite.code}`",                                        inline=True)
+    embed.add_field(name="Oluşturan", value=invite.inviter.mention if invite.inviter else "Bilinmiyor", inline=True)
+    embed.add_field(name="Kanal", value=invite.channel.mention if invite.channel else "—", inline=True)
+    embed.add_field(name="Davet Kodu", value=f"`{invite.code}`", inline=True)
 
     # Kullanım limiti: 0 = sınırsız
     kullanim = str(invite.max_uses) if invite.max_uses else "Sınırsız"
-    embed.add_field(name="🔢 Kullanım Limiti", value=kullanim, inline=True)
+    embed.add_field(name="Kullanım Limiti", value=kullanim, inline=True)
 
     # Süre: 0 = hiç dolmaz
     if invite.max_age:
         sure = f"{invite.max_age // 3600} saat" if invite.max_age >= 3600 else f"{invite.max_age // 60} dakika"
     else:
         sure = "Süresiz"
-    embed.add_field(name="⏳ Geçerlilik",   value=sure,    inline=True)
-    embed.add_field(name="🌐 URL",          value=f"discord.gg/{invite.code}", inline=True)
+    embed.add_field(name="Geçerlilik", value=sure, inline=True)
+    embed.add_field(name="URL", value=f"discord.gg/{invite.code}", inline=True)
 
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(invite.guild, "davet_log", embed)
@@ -1384,12 +1419,13 @@ async def on_invite_create(invite: discord.Invite):
 async def on_invite_delete(invite: discord.Invite):
     """Bir davet bağlantısı silindiğinde tetiklenir."""
     embed = discord.Embed(
-        title="🗑️ Davet Silindi",
+        title="Davet Silindi",
+        description="Bir davet bağlantısı kaldırıldı.",
         color=RENKLER["hata"],
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="🔗 Davet Kodu", value=f"`{invite.code}`",                                        inline=True)
-    embed.add_field(name="📍 Kanal",       value=invite.channel.mention if invite.channel else "—",         inline=True)
+    embed.add_field(name="Davet Kodu", value=f"`{invite.code}`", inline=True)
+    embed.add_field(name="Kanal", value=invite.channel.mention if invite.channel else "—", inline=True)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(invite.guild, "davet_log", embed)
 
@@ -1413,21 +1449,23 @@ async def on_guild_channel_create(kanal: discord.abc.GuildChannel):
     }.get(type(kanal), "📌 Kanal")
 
     embed = discord.Embed(
-        title="✅ Kanal Oluşturuldu",
+        title="Kanal Oluşturuldu",
+        description=f"Yeni bir kanal açıldı: **{kanal.name}**",
         color=RENKLER["giris"],
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="📍 Kanal",        value=f"{kanal.mention} `{kanal.name}`",                        inline=True)
-    embed.add_field(name="📂 Tür",           value=tur_simge,                                               inline=True)
-    embed.add_field(name="🛡️ İşlemi Yapan", value=sorumlu.mention if sorumlu else "⚠️ Bilinmiyor",          inline=True)
-    embed.add_field(name="🆔 Kanal ID",     value=f"`{kanal.id}`",                                          inline=True)
+    embed.add_field(name="Kanal", value=kanal.mention if hasattr(kanal, "mention") else f"`{kanal.name}`", inline=True)
+    embed.add_field(name="Tür", value=tur_simge, inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Kanal ID", value=f"`{kanal.id}`", inline=True)
 
     # Kategorisi varsa göster
     if hasattr(kanal, "category") and kanal.category:
-        embed.add_field(name="📁 Kategori", value=kanal.category.name, inline=True)
+        embed.add_field(name="Kategori", value=kanal.category.name, inline=True)
 
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(kanal.guild, "kanal_log", embed)
+    await _guvenlik_eylem_isle(kanal.guild, sorumlu, "kanal_acma", f"{kanal.name} ({kanal.id})", _guvenlik_ayar_al(kanal.guild.id).get("kanal_limit", 3))
 
 
 @bot.event
@@ -1444,20 +1482,60 @@ async def on_guild_channel_delete(kanal: discord.abc.GuildChannel):
     }.get(type(kanal), "📌 Kanal")
 
     embed = discord.Embed(
-        title="🗑️ Kanal Silindi",
+        title="Kanal Silindi",
+        description=f"Bir kanal kaldırıldı: **{kanal.name}**",
         color=RENKLER["hata"],
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="📍 Kanal Adı",    value=f"`{kanal.name}`",                                        inline=True)
-    embed.add_field(name="📂 Tür",           value=tur_simge,                                               inline=True)
-    embed.add_field(name="🛡️ İşlemi Yapan", value=sorumlu.mention if sorumlu else "⚠️ Bilinmiyor",          inline=True)
-    embed.add_field(name="🆔 Kanal ID",     value=f"`{kanal.id}`",                                          inline=True)
+    embed.add_field(name="Kanal", value=f"`{kanal.name}`", inline=True)
+    embed.add_field(name="Tür", value=tur_simge, inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Kanal ID", value=f"`{kanal.id}`", inline=True)
 
     if hasattr(kanal, "category") and kanal.category:
-        embed.add_field(name="📁 Kategori", value=kanal.category.name, inline=True)
+        embed.add_field(name="Kategori", value=kanal.category.name, inline=True)
 
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(kanal.guild, "kanal_log", embed)
+    await _guvenlik_eylem_isle(kanal.guild, sorumlu, "kanal_silme", f"{kanal.name} ({kanal.id})", _guvenlik_ayar_al(kanal.guild.id).get("kanal_sil_limit", 3))
+
+
+@bot.event
+async def on_guild_role_create(rol: discord.Role):
+    sorumlu = await audit_log_bul(rol.guild, discord.AuditLogAction.role_create, hedef=rol)
+
+    embed = discord.Embed(
+        title="Rol Oluşturuldu",
+        description=f"Yeni rol: {rol.mention}",
+        color=RENKLER["giris"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Rol", value=rol.mention, inline=True)
+    embed.add_field(name="ID", value=f"`{rol.id}`", inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Renk", value=str(rol.color), inline=True)
+    embed.set_footer(text=zaman_damgasi())
+    await log_gonder(rol.guild, "rol_log", embed)
+    await _guvenlik_eylem_isle(rol.guild, sorumlu, "rol_acma", f"{rol.name} ({rol.id})", _guvenlik_ayar_al(rol.guild.id).get("rol_ac_limit", 3))
+
+
+@bot.event
+async def on_guild_role_delete(rol: discord.Role):
+    sorumlu = await audit_log_bul(rol.guild, discord.AuditLogAction.role_delete, hedef=rol)
+
+    embed = discord.Embed(
+        title="Rol Silindi",
+        description=f"Kaldırılan rol: **{rol.name}**",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Rol", value=f"`{rol.name}`", inline=True)
+    embed.add_field(name="ID", value=f"`{rol.id}`", inline=True)
+    embed.add_field(name="Islemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Renk", value=str(rol.color), inline=True)
+    embed.set_footer(text=zaman_damgasi())
+    await log_gonder(rol.guild, "rol_log", embed)
+    await _guvenlik_eylem_isle(rol.guild, sorumlu, "rol_silme", f"{rol.name} ({rol.id})", _guvenlik_ayar_al(rol.guild.id).get("rol_sil_limit", 3))
 
 
 def kanal_izin_farklarini_bul(onceki: discord.abc.GuildChannel, sonraki: discord.abc.GuildChannel):
@@ -3866,28 +3944,49 @@ async def renk_panel(ctx):
 
     class RenkSec(discord.ui.Select):
         def __init__(self):
-            secenekler = [discord.SelectOption(label=rol.name, value=str(rol.id)) for rol in roller[:24]]
-            secenekler.append(discord.SelectOption(label="Renk Kaldir", value="clear"))
-            super().__init__(placeholder="Bir renk sec", min_values=1, max_values=1, options=secenekler)
+            secenekler = [
+                discord.SelectOption(
+                    label=rol.name[:100],
+                    value=str(rol.id),
+                    description=f"{rol.members.__len__()} uye kullaniyor"[:100]
+                )
+                for rol in roller[:24]
+            ]
+            secenekler.append(discord.SelectOption(label="Renk Kaldır", value="clear", description="Üzerindeki renk rollerini temizler"))
+            super().__init__(placeholder="Kendine bir renk rolü seç", min_values=1, max_values=1, options=secenekler)
 
         async def callback(self, interaction: discord.Interaction):
             mevcut_renkler = [rol for rol in roller if rol in interaction.user.roles]
             if mevcut_renkler:
                 await interaction.user.remove_roles(*mevcut_renkler, reason="Renk secimi guncellendi")
             if self.values[0] == "clear":
-                await interaction.response.send_message("Renk rollerin temizlendi.", ephemeral=True)
+                await interaction.response.send_message("Üzerindeki renk rolleri temizlendi.", ephemeral=True)
                 return
             yeni_rol = interaction.guild.get_role(int(self.values[0]))
             if yeni_rol:
                 await interaction.user.add_roles(yeni_rol, reason="Renk paneli secimi")
-                await interaction.response.send_message(f"Yeni rengin: {yeni_rol.mention}", ephemeral=True)
+                await interaction.response.send_message(f"Yeni rengin başarıyla {yeni_rol.mention} olarak ayarlandı.", ephemeral=True)
 
     class RenkView(discord.ui.View):
         def __init__(self):
             super().__init__(timeout=600)
             self.add_item(RenkSec())
 
-    embed = discord.Embed(title="Renk Sistemi", description="Asagidan kendine bir renk rolu sec.", color=RENKLER["rol"])
+    rol_listesi = "\n".join(f"`{i+1}.` {rol.mention}" for i, rol in enumerate(roller[:12]))
+    embed = discord.Embed(
+        title="Renk Rolü Seçim Menüsü",
+        description=(
+            "Aşağıdaki menüden sunucuda kullanmak istediğin renk rolünü seçebilirsin.\n"
+            "Yeni bir renk seçtiğinde eski renk rollerin otomatik kaldırılır."
+        ),
+        color=RENKLER["rol"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Nasıl Çalışır?", value="Menüden bir renk seç.\nİstersen `Renk Kaldır` ile tüm renk rollerini temizle.", inline=False)
+    embed.add_field(name="Kullanılabilir Roller", value=rol_listesi if rol_listesi else "Rol bulunamadı.", inline=False)
+    embed.set_footer(text=f"Toplam {len(roller)} renk rolü • {ctx.guild.name}")
+    if ctx.guild.icon:
+        embed.set_thumbnail(url=ctx.guild.icon.url)
     await ctx.send(embed=embed, view=RenkView())
 
 
@@ -4021,6 +4120,190 @@ def _welcome_ayar_al(guild_id: int) -> dict:
 
 def _welcome_ayar_kaydet(guild_id: int, veri: dict):
     _guild_ayar_kismi_kaydet(guild_id, "hosgeldin_sistemi", veri)
+
+
+def _guvenlik_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("guvenlik", {})
+    return {
+        "aktif": veri.get("aktif", False),
+        "log_kanal_id": veri.get("log_kanal_id"),
+        "sure_saniye": int(veri.get("sure_saniye", 60) or 60),
+        "ban_limit": int(veri.get("ban_limit", 3) or 3),
+        "kanal_limit": int(veri.get("kanal_limit", 3) or 3),
+        "kanal_sil_limit": int(veri.get("kanal_sil_limit", 3) or 3),
+        "rol_ac_limit": int(veri.get("rol_ac_limit", 3) or 3),
+        "rol_sil_limit": int(veri.get("rol_sil_limit", 3) or 3),
+        "kick_limit": int(veri.get("kick_limit", 3) or 3),
+        "whitelist_ids": veri.get("whitelist_ids", []),
+        "durumlar": veri.get("durumlar", {}),
+    }
+
+
+def _guvenlik_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "guvenlik", veri)
+
+
+async def _guvenlik_sorumlu_whitelistte_mi(guild: discord.Guild, sorumlu: discord.Member | discord.User | None, ayar: dict) -> bool:
+    if sorumlu is None:
+        return False
+    whitelist = {int(x) for x in (ayar.get("whitelist_ids", []) or []) if str(x).isdigit()}
+    if not whitelist:
+        return False
+    if sorumlu.id in whitelist:
+        return True
+
+    uye = sorumlu if isinstance(sorumlu, discord.Member) else guild.get_member(sorumlu.id)
+    if uye is None:
+        try:
+            uye = await guild.fetch_member(sorumlu.id)
+        except discord.HTTPException:
+            uye = None
+    if uye is None:
+        return False
+    return any(rol.id in whitelist for rol in uye.roles)
+
+
+def _guvenlik_log_kanali_al(guild: discord.Guild, ayar: dict) -> discord.TextChannel | None:
+    kanal_id = ayar.get("log_kanal_id")
+    if kanal_id:
+        kanal = guild.get_channel(kanal_id)
+        if isinstance(kanal, discord.TextChannel):
+            return kanal
+    mod_kanal_id = kanal_al(guild.id, "mod_log")
+    kanal = guild.get_channel(mod_kanal_id) if mod_kanal_id else None
+    return kanal if isinstance(kanal, discord.TextChannel) else None
+
+
+async def _guvenlik_log_gonder(guild: discord.Guild, ayar: dict, embed: discord.Embed):
+    kanal = _guvenlik_log_kanali_al(guild, ayar)
+    if kanal:
+        try:
+            await kanal.send(embed=embed)
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+
+async def _guvenlik_eylem_isle(
+    guild: discord.Guild,
+    sorumlu: discord.Member | discord.User | None,
+    eylem: str,
+    hedef: str,
+    limit: int,
+):
+    if sorumlu is None or getattr(sorumlu, "bot", False):
+        return
+    if guild.owner_id == sorumlu.id:
+        return
+
+    ayar = _guvenlik_ayar_al(guild.id)
+    if not ayar.get("aktif"):
+        return
+    if await _guvenlik_sorumlu_whitelistte_mi(guild, sorumlu, ayar):
+        return
+
+    simdi = datetime.now(timezone.utc)
+    pencere = max(10, int(ayar.get("sure_saniye", 60)))
+
+    def _guncelle(ayarlar):
+        gk = str(guild.id)
+        if gk not in ayarlar:
+            ayarlar[gk] = {}
+        guvenlik = ayarlar[gk].setdefault("guvenlik", {})
+        durumlar = guvenlik.setdefault("durumlar", {})
+        uye_durum = durumlar.setdefault(str(sorumlu.id), {})
+        eylem_durum = uye_durum.get(eylem, {})
+
+        baslangic_str = eylem_durum.get("baslangic")
+        sayi = int(eylem_durum.get("sayi", 0) or 0)
+        uyari_verildi = bool(eylem_durum.get("uyari_verildi", False))
+
+        if baslangic_str:
+            try:
+                baslangic = utc_datetime_from_iso(baslangic_str)
+            except Exception:
+                baslangic = simdi
+        else:
+            baslangic = simdi
+
+        if (simdi - baslangic).total_seconds() > pencere:
+            baslangic = simdi
+            sayi = 0
+            uyari_verildi = False
+
+        sayi += 1
+        uye_durum[eylem] = {
+            "baslangic": baslangic.isoformat(),
+            "sayi": sayi,
+            "uyari_verildi": uyari_verildi,
+        }
+        return {
+            "sayi": sayi,
+            "uyari_verildi": uyari_verildi,
+            "baslangic": baslangic.isoformat(),
+        }
+
+    sonuc = ayarlari_guncelle(_guncelle)
+    sayi = sonuc["sayi"]
+    uyari_verildi = sonuc["uyari_verildi"]
+
+    if sayi <= limit:
+        return
+
+    if not uyari_verildi:
+        def _uyari_isaretle(ayarlar):
+            gk = str(guild.id)
+            guvenlik = ayarlar.setdefault(gk, {}).setdefault("guvenlik", {})
+            uye_durum = guvenlik.setdefault("durumlar", {}).setdefault(str(sorumlu.id), {})
+            eylem_durum = uye_durum.setdefault(eylem, {})
+            eylem_durum["uyari_verildi"] = True
+
+        ayarlari_guncelle(_uyari_isaretle)
+
+    embed = discord.Embed(
+        title="Güvenlik Uyarısı",
+        description=(
+            f"{sorumlu.mention} kisa surede cok fazla `{eylem}` eylemi yapti.\n"
+            f"**Son hedef:** {hedef}\n"
+            f"**Durum:** Bir sonraki ihlalde banlanacak."
+            ),
+            color=RENKLER["mute"],
+            timestamp=simdi,
+        )
+        embed.add_field(name="Limit", value=f"{limit} / {pencere}s", inline=True)
+        embed.add_field(name="Mevcut", value=str(sayi), inline=True)
+        embed.set_footer(text="Sunucu Guvenlik Sistemi")
+        await _guvenlik_log_gonder(guild, ayar, embed)
+        return
+
+    uye = guild.get_member(sorumlu.id)
+    if uye is None:
+        try:
+            uye = await guild.fetch_member(sorumlu.id)
+        except discord.HTTPException:
+            uye = None
+    if uye is None or guild.owner_id == uye.id:
+        return
+
+    try:
+        await guild.ban(uye, reason=f"Guvenlik sistemi: tekrarlanan {eylem} limiti asimi")
+        banlandi = True
+    except (discord.Forbidden, discord.HTTPException):
+        banlandi = False
+
+    embed = discord.Embed(
+        title="Güvenlik Sistemi Tetiklendi",
+        description=(
+            f"{sorumlu.mention} tekrar `{eylem}` limiti asti.\n"
+            f"**Son hedef:** {hedef}\n"
+            f"**Sonuc:** {'Kullanici banlandi.' if banlandi else 'Ban denendi ama basarisiz oldu.'}"
+        ),
+        color=RENKLER["hata"],
+        timestamp=simdi,
+    )
+    embed.add_field(name="Limit", value=f"{limit} / {pencere}s", inline=True)
+    embed.add_field(name="Mevcut", value=str(sayi), inline=True)
+    embed.set_footer(text="Sunucu Guvenlik Sistemi")
+    await _guvenlik_log_gonder(guild, ayar, embed)
 
 
 def _xp_hedef(level: int) -> int:
@@ -4378,7 +4661,7 @@ class LevelKurModal(discord.ui.Modal, title="Level Sistemi Kurulumu"):
         default="Tebrikler {member_mention}, {level}. seviyeye ulastin!"
     )
     gif_url = discord.ui.TextInput(
-        label="GIF URL (opsiyonel, kapat/sil yazarsan temizler)",
+        label="GIF URL (opsiyonel, bos birak = temizle)",
         required=False,
         max_length=500
     )
@@ -4410,6 +4693,15 @@ class LevelKurModal(discord.ui.Modal, title="Level Sistemi Kurulumu"):
             f"Level sistemi modal ile kaydedildi.\nKanal: {kanal.mention}",
             ephemeral=True
         )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Level modal hatasi: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Level modal hatasi: {error}", ephemeral=True)
+        except Exception:
+            pass
 
 
 class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
@@ -4479,6 +4771,118 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
             ephemeral=True
         )
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Hosgeldin modal hatasi: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Hosgeldin modal hatasi: {error}", ephemeral=True)
+        except Exception:
+            pass
+
+
+class GuvenlikKurModal(discord.ui.Modal, title="Guvenlik Sistemi"):
+    log_kanal_id = discord.ui.TextInput(
+        label="Log kanal ID",
+        placeholder="Ornek: 123456789012345678",
+        required=True,
+        max_length=25
+    )
+    sure_saniye = discord.ui.TextInput(
+        label="Pencere suresi (sn)",
+        placeholder="Ornek: 60",
+        required=True,
+        default="60",
+        max_length=4
+    )
+    ban_limit = discord.ui.TextInput(
+        label="Ban limiti",
+        placeholder="Ornek: 3",
+        required=True,
+        default="3",
+        max_length=3
+    )
+    kanal_limit = discord.ui.TextInput(
+        label="Kanal acma limiti",
+        placeholder="Ornek: 3",
+        required=True,
+        default="3",
+        max_length=3
+    )
+    diger_limitler = discord.ui.TextInput(
+        label="Kanal silme / rol acma / rol silme / kick",
+        placeholder="Ornek: 3,3,3,3",
+        required=True,
+        default="3,3,3,3",
+        max_length=32
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            log_kanal_id = int((self.log_kanal_id.value or "").strip())
+            sure_saniye = int((self.sure_saniye.value or "").strip())
+            ban_limit = int((self.ban_limit.value or "").strip())
+            kanal_limit = int((self.kanal_limit.value or "").strip())
+            digerler = [int(x.strip()) for x in (self.diger_limitler.value or "").split(",")]
+            if len(digerler) != 4:
+                raise ValueError
+            kanal_sil_limit, rol_ac_limit, rol_sil_limit, kick_limit = digerler
+        except ValueError:
+            await interaction.response.send_message("Tum alanlara gecerli sayisal degerler girmen gerekiyor. Son alan `3,3,3,3` formatinda olmali.", ephemeral=True)
+            return
+
+        if sure_saniye < 10 or sure_saniye > 3600:
+            await interaction.response.send_message("Pencere suresi 10 ile 3600 saniye arasinda olmali.", ephemeral=True)
+            return
+        if min(ban_limit, kanal_limit, kanal_sil_limit, rol_ac_limit, rol_sil_limit, kick_limit) < 1:
+            await interaction.response.send_message("Tum limitler en az 1 olmali.", ephemeral=True)
+            return
+
+        log_kanal = interaction.guild.get_channel(log_kanal_id) if interaction.guild else None
+        if not isinstance(log_kanal, discord.TextChannel):
+            await interaction.response.send_message("Bu ID ile metin kanali bulunamadi.", ephemeral=True)
+            return
+
+        ayar = _guvenlik_ayar_al(interaction.guild.id)
+        ayar.update({
+            "aktif": True,
+            "log_kanal_id": log_kanal.id,
+            "sure_saniye": sure_saniye,
+            "ban_limit": ban_limit,
+            "kanal_limit": kanal_limit,
+            "kanal_sil_limit": kanal_sil_limit,
+            "rol_ac_limit": rol_ac_limit,
+            "rol_sil_limit": rol_sil_limit,
+            "kick_limit": kick_limit,
+        })
+        _guvenlik_ayar_kaydet(interaction.guild.id, ayar)
+
+        embed = discord.Embed(
+            title="Güvenlik Sistemi Kaydedildi",
+            description="Sunucu koruma limitleri modal ile başarıyla kaydedildi.",
+            color=RENKLER["basari"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Log", value=log_kanal.mention, inline=True)
+        embed.add_field(name="Pencere", value=f"{sure_saniye} sn", inline=True)
+        embed.add_field(name="Ban", value=str(ban_limit), inline=True)
+        embed.add_field(name="Kanal Acma", value=str(kanal_limit), inline=True)
+        embed.add_field(name="Kanal Silme", value=str(kanal_sil_limit), inline=True)
+        embed.add_field(name="Rol Acma", value=str(rol_ac_limit), inline=True)
+        embed.add_field(name="Rol Silme", value=str(rol_sil_limit), inline=True)
+        embed.add_field(name="Kick", value=str(kick_limit), inline=True)
+        embed.set_footer(text="Ilk asimda uyari, bir sonraki ihlalde ban")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Guvenlik modal hatasi: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Guvenlik modal hatasi: {error}", ephemeral=True)
+        except Exception:
+            pass
+
 
 class _KurulumView(discord.ui.View):
     def __init__(self, modal_tipi: str):
@@ -4490,6 +4894,8 @@ class _KurulumView(discord.ui.View):
         try:
             if self.modal_tipi == "level":
                 await interaction.response.send_modal(LevelKurModal())
+            elif self.modal_tipi == "guvenlik":
+                await interaction.response.send_modal(GuvenlikKurModal())
             else:
                 await interaction.response.send_modal(HosgeldinKurModal())
         except Exception as e:
@@ -4519,6 +4925,116 @@ async def hosgeldin_kur_modal(ctx):
         color=RENKLER["bilgi"]
     )
     await ctx.send(embed=e, view=_KurulumView("hosgeldin"))
+
+
+@bot.command(name="guvenlikkur", aliases=["güvenlikkur"])
+@commands.has_permissions(administrator=True)
+async def guvenlik_kur_modal(ctx):
+    e = discord.Embed(
+        title="Güvenlik Sistemi Kurulumu",
+        description=(
+            "Asagidaki butona tikla ve limitleri modal uzerinden ayarla.\n"
+            "Limit asilinca uyari verilir, bir sonraki ayni ihlalde kullanici banlanir."
+        ),
+        color=RENKLER["bilgi"]
+    )
+    await ctx.send(embed=e, view=_KurulumView("guvenlik"))
+
+
+@bot.command(name="guvenlikdurum", aliases=["güvenlikdurum"])
+@commands.has_permissions(administrator=True)
+async def guvenlik_durum(ctx):
+    ayar = _guvenlik_ayar_al(ctx.guild.id)
+    log_kanal = ctx.guild.get_channel(ayar.get("log_kanal_id")) if ayar.get("log_kanal_id") else None
+    whitelist = []
+    for hedef_id in ayar.get("whitelist_ids", []) or []:
+        uye = ctx.guild.get_member(int(hedef_id)) if str(hedef_id).isdigit() else None
+        rol = ctx.guild.get_role(int(hedef_id)) if str(hedef_id).isdigit() else None
+        if uye:
+            whitelist.append(uye.mention)
+        elif rol:
+            whitelist.append(rol.mention)
+    e = discord.Embed(
+        title="Güvenlik Sistemi",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    e.add_field(name="Durum", value="Aktif" if ayar.get("aktif") else "Kapalı", inline=True)
+    e.add_field(name="Log", value=log_kanal.mention if log_kanal else "Yok", inline=True)
+    e.add_field(name="Pencere", value=f"{ayar.get('sure_saniye', 60)} sn", inline=True)
+    e.add_field(name="Ban Limiti", value=str(ayar.get("ban_limit", 3)), inline=True)
+    e.add_field(name="Kanal Acma", value=str(ayar.get("kanal_limit", 3)), inline=True)
+    e.add_field(name="Kanal Silme", value=str(ayar.get("kanal_sil_limit", 3)), inline=True)
+    e.add_field(name="Rol Acma", value=str(ayar.get("rol_ac_limit", 3)), inline=True)
+    e.add_field(name="Rol Silme", value=str(ayar.get("rol_sil_limit", 3)), inline=True)
+    e.add_field(name="Kick", value=str(ayar.get("kick_limit", 3)), inline=True)
+    e.add_field(name="Whitelist", value=", ".join(whitelist[:10]) if whitelist else "Yok", inline=False)
+    await ctx.send(embed=e)
+
+
+@bot.command(name="guvenlikkapat", aliases=["güvenlikkapat"])
+@commands.has_permissions(administrator=True)
+async def guvenlik_kapat(ctx):
+    ayar = _guvenlik_ayar_al(ctx.guild.id)
+    ayar["aktif"] = False
+    _guvenlik_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(embed=discord.Embed(
+        title="Güvenlik Sistemi Kapatıldı",
+        description="Sunucu guvenlik limitleri devre disi birakildi.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    ))
+
+
+@bot.command(name="guvenlikizin", aliases=["güvenlikizin", "guvenlik-whitelist"])
+@commands.has_permissions(administrator=True)
+async def guvenlik_izin_ekle(ctx, hedef = None):
+    if hedef is None:
+        await ctx.send("Kullanım: `.guvenlikizin @uye` veya `.guvenlikizin @rol`")
+        return
+    hedef_obj = None
+    if ctx.message.role_mentions:
+        hedef_obj = ctx.message.role_mentions[0]
+    elif ctx.message.mentions:
+        hedef_obj = ctx.message.mentions[0]
+    if hedef_obj is None:
+        await ctx.send("Lütfen bir üye veya rol etiketle.")
+        return
+    ayar = _guvenlik_ayar_al(ctx.guild.id)
+    whitelist = list(dict.fromkeys((ayar.get("whitelist_ids", []) or []) + [hedef_obj.id]))
+    ayar["whitelist_ids"] = whitelist
+    _guvenlik_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(embed=discord.Embed(
+        title="Whitelist Güncellendi",
+        description=f"{hedef_obj.mention} güvenlik whitelist listesine eklendi.",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    ))
+
+
+@bot.command(name="guvenlikizinsil", aliases=["güvenlikizinsil", "guvenlik-whitelist-sil"])
+@commands.has_permissions(administrator=True)
+async def guvenlik_izin_sil(ctx, hedef = None):
+    if hedef is None:
+        await ctx.send("Kullanım: `.guvenlikizinsil @uye` veya `.guvenlikizinsil @rol`")
+        return
+    hedef_obj = None
+    if ctx.message.role_mentions:
+        hedef_obj = ctx.message.role_mentions[0]
+    elif ctx.message.mentions:
+        hedef_obj = ctx.message.mentions[0]
+    if hedef_obj is None:
+        await ctx.send("Lütfen bir üye veya rol etiketle.")
+        return
+    ayar = _guvenlik_ayar_al(ctx.guild.id)
+    ayar["whitelist_ids"] = [x for x in (ayar.get("whitelist_ids", []) or []) if x != hedef_obj.id]
+    _guvenlik_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(embed=discord.Embed(
+        title="Whitelist Güncellendi",
+        description=f"{hedef_obj.mention} whitelist listesinden çıkarıldı.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    ))
 
 
 @bot.command(name="levelmesajtest")
