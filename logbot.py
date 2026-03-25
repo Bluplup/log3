@@ -4259,12 +4259,12 @@ async def _guvenlik_eylem_isle(
 
         ayarlari_guncelle(_uyari_isaretle)
 
-    embed = discord.Embed(
-        title="Güvenlik Uyarısı",
-        description=(
-            f"{sorumlu.mention} kisa surede cok fazla `{eylem}` eylemi yapti.\n"
-            f"**Son hedef:** {hedef}\n"
-            f"**Durum:** Bir sonraki ihlalde banlanacak."
+        embed = discord.Embed(
+            title="Güvenlik Uyarısı",
+            description=(
+                f"{sorumlu.mention} kisa surede cok fazla `{eylem}` eylemi yapti.\n"
+                f"**Son hedef:** {hedef}\n"
+                f"**Durum:** Bir sonraki ihlalde banlanacak."
             ),
             color=RENKLER["mute"],
             timestamp=simdi,
