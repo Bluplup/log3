@@ -4336,16 +4336,56 @@ def _xp_veri_kaydet(guild_id: int, user_id: int, veri: dict):
 
 
 def _sablon_doldur(sablon: str, uye: discord.Member, level: int = 0, xp: int = 0) -> str:
-    return sablon.format(
-        user=str(uye),
-        username=uye.name,
-        member_mention=uye.mention,
-        mention=uye.mention,
-        level=level,
-        xp=xp,
-        guild=uye.guild.name,
-        member_count=uye.guild.member_count
+    try:
+        return sablon.format(
+            user=str(uye),
+            username=uye.name,
+            member=uye.mention,
+            uye=uye.mention,
+            member_mention=uye.mention,
+            user_mention=uye.mention,
+            mention=uye.mention,
+            level=level,
+            xp=xp,
+            guild=uye.guild.name,
+            guild_name=uye.guild.name,
+            member_count=uye.guild.member_count
+        )
+    except KeyError:
+        return sablon.replace("{member}", uye.mention).replace("{user}", str(uye)).replace("{mention}", uye.mention)
+
+
+def _kanal_id_coz(raw: str) -> int | None:
+    ham = (raw or "").strip()
+    if not ham:
+        return None
+    ham = ham.replace("<#", "").replace(">", "").strip()
+    return int(ham) if ham.isdigit() else None
+
+
+def _hosgeldin_icerigi_hazirla(uye: discord.Member, ayar: dict) -> tuple[str, discord.Embed]:
+    rol_mentionlari = []
+    for rol_id in ayar.get("rol_ids", []):
+        rol = uye.guild.get_role(rol_id)
+        if rol:
+            rol_mentionlari.append(rol.mention)
+
+    ust_metin = uye.mention
+    if rol_mentionlari:
+        ust_metin += " " + " ".join(rol_mentionlari)
+
+    e = discord.Embed(
+        title="Hoş Geldin!",
+        description=_sablon_doldur(ayar.get("mesaj", "Hoş geldin {member_mention}!"), uye),
+        color=RENKLER["giris"],
+        timestamp=datetime.now(timezone.utc)
     )
+    if ayar.get("gif_url"):
+        e.set_image(url=ayar["gif_url"])
+    if uye.display_avatar:
+        e.set_thumbnail(url=uye.display_avatar.url)
+    e.set_footer(text=zaman_damgasi())
+    return ust_metin, e
 
 
 def _level_odul_rollerini_coz(guild: discord.Guild, ayar: dict, level: int) -> list[discord.Role]:
@@ -4492,35 +4532,16 @@ async def hosgeldin_listener(member: discord.Member):
     if not kanal_id:
         return
     kanal = member.guild.get_channel(kanal_id)
-    if not kanal:
+    if not isinstance(kanal, discord.TextChannel):
         return
 
-    rol_mentionlari = []
-    for rol_id in ayar.get("rol_ids", []):
-        rol = member.guild.get_role(rol_id)
-        if rol:
-            rol_mentionlari.append(rol.mention)
-
-    mesaj_ust = f"{member.mention}"
-    if rol_mentionlari:
-        mesaj_ust += " " + " ".join(rol_mentionlari)
-
-    e = discord.Embed(
-        title="Hos Geldin!",
-        description=_sablon_doldur(ayar.get("mesaj", ""), member),
-        color=RENKLER["giris"],
-        timestamp=datetime.now(timezone.utc)
-    )
-    if ayar.get("gif_url"):
-        e.set_image(url=ayar["gif_url"])
-    if member.display_avatar:
-        e.set_thumbnail(url=member.display_avatar.url)
-    e.set_footer(text=zaman_damgasi())
-
     try:
+        mesaj_ust, e = _hosgeldin_icerigi_hazirla(member, ayar)
         await kanal.send(mesaj_ust, embed=e)
     except discord.Forbidden:
-        pass
+        print(f"[UYARI] Hosgeldin mesaji gonderilemedi: yetki yok | guild={member.guild.id} kanal={kanal.id}")
+    except Exception as e:
+        print(f"[HATA] Hosgeldin listener: {e}")
 
 
 @bot.listen("on_message")
@@ -4667,9 +4688,8 @@ class LevelKurModal(discord.ui.Modal, title="Level Sistemi Kurulumu"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        try:
-            kanal_id = int((self.kanal_id.value or "").strip())
-        except ValueError:
+        kanal_id = _kanal_id_coz(self.kanal_id.value)
+        if kanal_id is None:
             await interaction.response.send_message("Gecersiz kanal ID girdin.", ephemeral=True)
             return
 
@@ -4731,9 +4751,8 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        try:
-            kanal_id = int((self.kanal_id.value or "").strip())
-        except ValueError:
+        kanal_id = _kanal_id_coz(self.kanal_id.value)
+        if kanal_id is None:
             await interaction.response.send_message("Gecersiz kanal ID girdin.", ephemeral=True)
             return
 
@@ -5067,40 +5086,24 @@ async def hosgeldin_mesaj_test(ctx, uye: discord.Member = None):
     kanal_id = ayar.get("kanal_id")
     kanal = ctx.guild.get_channel(kanal_id) if kanal_id else None
 
-    if kanal_id and not isinstance(kanal, discord.TextChannel):
+    if not kanal_id:
+        await ctx.send("Hoşgeldin sistemi için kanal ayarlı değil. `.hosgeldinkur` ile önce kurulum yap.")
+        return
+    if not isinstance(kanal, discord.TextChannel):
         await ctx.send("Ayarlı hoşgeldin kanalı bulunamadı. `.hosgeldinkur` ile sistemi tekrar kur.")
         return
-
-    rol_mentionlari = []
-    for rid in ayar.get("rol_ids", []):
-        rol = ctx.guild.get_role(rid)
-        if rol:
-            rol_mentionlari.append(rol.mention)
-
-    ust_metin = hedef.mention
-    if rol_mentionlari:
-        ust_metin += " " + " ".join(rol_mentionlari)
-
-    e = discord.Embed(
-        title="Hos Geldin! (Test)",
-        description=_sablon_doldur(ayar.get("mesaj", "Hos geldin {member_mention}!"), hedef),
-        color=RENKLER["giris"],
-        timestamp=datetime.now(timezone.utc)
-    )
-    if ayar.get("gif_url"):
-        e.set_image(url=ayar["gif_url"])
-    if hedef.display_avatar:
-        e.set_thumbnail(url=hedef.display_avatar.url)
-    e.set_footer(text=zaman_damgasi())
-    hedef_kanal = kanal or ctx.channel
     try:
-        await hedef_kanal.send(ust_metin, embed=e)
+        ust_metin, e = _hosgeldin_icerigi_hazirla(hedef, ayar)
+        e.title = "Hoş Geldin! (Test)"
+        await kanal.send(ust_metin, embed=e)
     except discord.Forbidden:
-        await ctx.send("Test mesajı gönderilemedi; botun hedef kanalda yazma yetkisi yok.")
+        await ctx.send("Test mesajı gönderilemedi; botun hoşgeldin kanalında yazma yetkisi yok.")
+        return
+    except Exception as e:
+        await ctx.send(f"Hoşgeldin test mesajı oluşturulurken hata oldu: {e}")
         return
 
-    if hedef_kanal.id != ctx.channel.id:
-        await ctx.send(f"Hoşgeldin test mesajı {hedef_kanal.mention} kanalına gönderildi.", delete_after=8)
+    await ctx.send(f"Hoşgeldin test mesajı {kanal.mention} kanalına gönderildi.", delete_after=8)
 
 
 app = Flask(__name__)
