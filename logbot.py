@@ -2723,7 +2723,7 @@ async def gelismis_yardim_v2(ctx):
         e.add_field(name="Ticket", value="`.ticketkur [kategori] #log @rol`\n`.ticketpanel`\n`.ticketkapat` · `.ticketekle` · `.ticketcikar`\n`.ticketkonu` · `.ticketlist` · `.ticketsayi`\n`.ticketoncelik` · `.ticketsahip` · `.ticketyeniden`", inline=False)
         e.add_field(name="Log", value="`.logkur`\n`.logkurkanal`\n`/log-kur` · `/log-kaldir`\n`/log-durum` · `/log-sifirla`", inline=False)
         e.add_field(name="Level", value="`.levelkur`\n`.levelrol <seviye> @rol`\n`.levelrolsil <seviye>`\n`.levelrolleri`\n`.levelmesajtest [@uye]`\n`.leveldurum` · `.seviye [@uye]`", inline=False)
-        e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
+        e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`\n`.karsilamakur`\n`.karsilamadurum`\n`.karsilamatest [@uye]`", inline=False)
         e.add_field(name="Diger", value="`.antilink`\n`.antilink ac`\n`.antilink kapat`\n`.antilink muaf @rol/#kanal`\n`.renkekle @rol` · `.renkcikar @rol`\n`.renklist` · `.renkpanel`", inline=False)
         e.set_footer(text="Modal ile kurulan sistemlerde eski setter komutlari kaldirildi")
         return e
@@ -4157,6 +4157,18 @@ def _welcome_ayar_kaydet(guild_id: int, veri: dict):
     _guild_ayar_kismi_kaydet(guild_id, "hosgeldin_sistemi", veri)
 
 
+def _karsilama_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("karsilama_sistemi", {})
+    return {
+        "kanal_id": veri.get("kanal_id"),
+        "mesaj": veri.get("mesaj", "Aramıza hoş geldin {username}. Seninle birlikte {member_count} kişiyiz."),
+    }
+
+
+def _karsilama_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "karsilama_sistemi", veri)
+
+
 def _guvenlik_ayar_al(guild_id: int) -> dict:
     veri = _guild_ayar_al(guild_id).get("guvenlik", {})
     return {
@@ -4428,6 +4440,19 @@ def _hosgeldin_icerigi_hazirla(uye: discord.Member, ayar: dict) -> tuple[str, di
     return ust_metin, e
 
 
+def _karsilama_embedi_hazirla(uye: discord.Member, ayar: dict) -> discord.Embed:
+    e = discord.Embed(
+        title="Sunucuya Yeni Biri Geldi",
+        description=_sablon_doldur(ayar.get("mesaj", "Aramıza hoş geldin {username}. Seninle birlikte {member_count} kişiyiz."), uye),
+        color=RENKLER["giris"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    if uye.display_avatar:
+        e.set_thumbnail(url=uye.display_avatar.url)
+    e.set_footer(text=f"{uye.guild.name} • {zaman_damgasi()}")
+    return e
+
+
 def _level_odul_rollerini_coz(guild: discord.Guild, ayar: dict, level: int) -> list[discord.Role]:
     roller = []
     for seviye_str, rol_id in (ayar.get("rol_odulleri", {}) or {}).items():
@@ -4548,6 +4573,16 @@ async def hosgeldin_durum(ctx):
     await ctx.send(embed=e)
 
 
+@bot.command(name="karsilamadurum", aliases=["karşılama-durum", "karsilama-durum"])
+async def karsilama_durum(ctx):
+    ayar = _karsilama_ayar_al(ctx.guild.id)
+    kanal = ctx.guild.get_channel(ayar.get("kanal_id")) if ayar.get("kanal_id") else None
+    e = discord.Embed(title="Karşılama Mesajı Sistemi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    e.add_field(name="Kanal", value=kanal.mention if kanal else "Ayarlanmamış", inline=False)
+    e.add_field(name="Mesaj", value=ayar.get("mesaj", "-"), inline=False)
+    await ctx.send(embed=e)
+
+
 @bot.command(name="leveldurum")
 async def level_durum(ctx):
     ayar = _level_ayar_al(ctx.guild.id)
@@ -4582,6 +4617,24 @@ async def hosgeldin_listener(member: discord.Member):
         print(f"[UYARI] Hosgeldin mesaji gonderilemedi: yetki yok | guild={member.guild.id} kanal={kanal.id}")
     except Exception as e:
         print(f"[HATA] Hosgeldin listener: {e}")
+
+
+@bot.listen("on_member_join")
+async def karsilama_listener(member: discord.Member):
+    ayar = _karsilama_ayar_al(member.guild.id)
+    kanal_id = ayar.get("kanal_id")
+    if not kanal_id:
+        return
+    kanal = member.guild.get_channel(kanal_id)
+    if not isinstance(kanal, discord.TextChannel):
+        return
+    try:
+        embed = _karsilama_embedi_hazirla(member, ayar)
+        await kanal.send(embed=embed)
+    except discord.Forbidden:
+        print(f"[UYARI] Karsilama mesaji gonderilemedi: yetki yok | guild={member.guild.id} kanal={kanal.id}")
+    except Exception as e:
+        print(f"[HATA] Karsilama listener: {e}")
 
 
 @bot.listen("on_message")
@@ -4840,6 +4893,52 @@ class HosgeldinKurModal(discord.ui.Modal, title="Hosgeldin Sistemi Kurulumu"):
             pass
 
 
+class KarsilamaKurModal(discord.ui.Modal, title="Karsilama Mesaji Kurulumu"):
+    kanal_id = discord.ui.TextInput(
+        label="Karsilama kanal ID",
+        placeholder="Ornek: 123456789012345678",
+        required=True,
+        max_length=25
+    )
+    mesaj = discord.ui.TextInput(
+        label="Karsilama metni",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=1000,
+        default="Aramıza hoş geldin {username}. Seninle birlikte {member_count} kişiyiz."
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        kanal_id = _kanal_id_coz(self.kanal_id.value)
+        if kanal_id is None:
+            await interaction.response.send_message("Geçersiz kanal ID girdin.", ephemeral=True)
+            return
+
+        kanal = interaction.guild.get_channel(kanal_id) if interaction.guild else None
+        if not isinstance(kanal, discord.TextChannel):
+            await interaction.response.send_message("Bu ID ile metin kanalı bulunamadı.", ephemeral=True)
+            return
+
+        ayar = _karsilama_ayar_al(interaction.guild.id)
+        ayar["kanal_id"] = kanal.id
+        ayar["mesaj"] = (self.mesaj.value or "").strip()
+        _karsilama_ayar_kaydet(interaction.guild.id, ayar)
+
+        await interaction.response.send_message(
+            f"Karşılama mesajı sistemi kaydedildi.\nKanal: {kanal.mention}",
+            ephemeral=True
+        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"Karşılama modal hatası: {error}", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Karşılama modal hatası: {error}", ephemeral=True)
+        except Exception:
+            pass
+
+
 class GuvenlikKurModal(discord.ui.Modal, title="Guvenlik Sistemi"):
     log_kanal_id = discord.ui.TextInput(
         label="Log kanal ID",
@@ -4953,6 +5052,8 @@ class _KurulumView(discord.ui.View):
         try:
             if self.modal_tipi == "level":
                 await interaction.response.send_modal(LevelKurModal())
+            elif self.modal_tipi == "karsilama":
+                await interaction.response.send_modal(KarsilamaKurModal())
             elif self.modal_tipi == "guvenlik":
                 await interaction.response.send_modal(GuvenlikKurModal())
             else:
@@ -4984,6 +5085,17 @@ async def hosgeldin_kur_modal(ctx):
         color=RENKLER["bilgi"]
     )
     await ctx.send(embed=e, view=_KurulumView("hosgeldin"))
+
+
+@bot.command(name="karsilamakur", aliases=["karşılama-kur", "karsilama-kur"])
+@commands.has_permissions(manage_guild=True)
+async def karsilama_kur_modal(ctx):
+    e = discord.Embed(
+        title="Karşılama Mesajı Kurulumu",
+        description="Aşağıdaki butona tıkla; etiket atmayan karşılama mesajını modal üzerinden kur.",
+        color=RENKLER["bilgi"]
+    )
+    await ctx.send(embed=e, view=_KurulumView("karsilama"))
 
 
 @bot.command(name="guvenlikkur", aliases=["güvenlikkur"])
@@ -5144,6 +5256,35 @@ async def hosgeldin_mesaj_test(ctx, uye: discord.Member = None):
         return
 
     await ctx.send(f"Hoşgeldin test mesajı {kanal.mention} kanalına gönderildi.", delete_after=8)
+
+
+@bot.command(name="karsilamatest", aliases=["karşılama-test", "karsilama-test"])
+@commands.has_permissions(manage_guild=True)
+async def karsilama_test(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    ayar = _karsilama_ayar_al(ctx.guild.id)
+    kanal_id = ayar.get("kanal_id")
+    kanal = ctx.guild.get_channel(kanal_id) if kanal_id else None
+
+    if not kanal_id:
+        await ctx.send("Karşılama sistemi için kanal ayarlı değil. `.karsilamakur` ile önce kurulum yap.")
+        return
+    if not isinstance(kanal, discord.TextChannel):
+        await ctx.send("Ayarlı karşılama kanalı bulunamadı. `.karsilamakur` ile sistemi tekrar kur.")
+        return
+
+    try:
+        embed = _karsilama_embedi_hazirla(hedef, ayar)
+        embed.title = "Karşılama Mesajı (Test)"
+        await kanal.send(embed=embed)
+    except discord.Forbidden:
+        await ctx.send("Test mesajı gönderilemedi; botun karşılama kanalında yazma yetkisi yok.")
+        return
+    except Exception as e:
+        await ctx.send(f"Karşılama test mesajı oluşturulurken hata oldu: {e}")
+        return
+
+    await ctx.send(f"Karşılama test mesajı {kanal.mention} kanalına gönderildi.", delete_after=8)
 
 
 app = Flask(__name__)
