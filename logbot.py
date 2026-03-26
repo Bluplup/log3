@@ -4440,17 +4440,13 @@ def _hosgeldin_icerigi_hazirla(uye: discord.Member, ayar: dict) -> tuple[str, di
     return ust_metin, e
 
 
-def _karsilama_embedi_hazirla(uye: discord.Member, ayar: dict) -> discord.Embed:
-    e = discord.Embed(
-        title="Sunucuya Yeni Biri Geldi",
-        description=_sablon_doldur(ayar.get("mesaj", "Aramıza hoş geldin {username}. Seninle birlikte {member_count} kişiyiz."), uye),
-        color=RENKLER["giris"],
-        timestamp=datetime.now(timezone.utc)
+def _karsilama_mesaji_hazirla(uye: discord.Member, ayar: dict) -> tuple[str, str | None]:
+    mesaj = _sablon_doldur(
+        ayar.get("mesaj", "Aramıza hoş geldin {username}. Seninle birlikte {member_count} kişiyiz."),
+        uye
     )
-    if uye.display_avatar:
-        e.set_thumbnail(url=uye.display_avatar.url)
-    e.set_footer(text=f"{uye.guild.name} • {zaman_damgasi()}")
-    return e
+    avatar_url = uye.display_avatar.url if uye.display_avatar else None
+    return mesaj, avatar_url
 
 
 def _level_odul_rollerini_coz(guild: discord.Guild, ayar: dict, level: int) -> list[discord.Role]:
@@ -4629,8 +4625,9 @@ async def karsilama_listener(member: discord.Member):
     if not isinstance(kanal, discord.TextChannel):
         return
     try:
-        embed = _karsilama_embedi_hazirla(member, ayar)
-        await kanal.send(embed=embed)
+        mesaj, avatar_url = _karsilama_mesaji_hazirla(member, ayar)
+        icerik = f"{mesaj}\n{avatar_url}" if avatar_url else mesaj
+        await kanal.send(icerik)
     except discord.Forbidden:
         print(f"[UYARI] Karsilama mesaji gonderilemedi: yetki yok | guild={member.guild.id} kanal={kanal.id}")
     except Exception as e:
@@ -5274,9 +5271,10 @@ async def karsilama_test(ctx, uye: discord.Member = None):
         return
 
     try:
-        embed = _karsilama_embedi_hazirla(hedef, ayar)
-        embed.title = "Karşılama Mesajı (Test)"
-        await kanal.send(embed=embed)
+        mesaj, avatar_url = _karsilama_mesaji_hazirla(hedef, ayar)
+        baslik = "**Karşılama Mesajı (Test)**"
+        icerik = f"{baslik}\n{mesaj}\n{avatar_url}" if avatar_url else f"{baslik}\n{mesaj}"
+        await kanal.send(icerik)
     except discord.Forbidden:
         await ctx.send("Test mesajı gönderilemedi; botun karşılama kanalında yazma yetkisi yok.")
         return
