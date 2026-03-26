@@ -1800,6 +1800,13 @@ def partner_verisi_al(guild_id: int) -> dict:
     return ayarlar.get(str(guild_id), {}).get("partners", {})
 
 
+def partner_gecmisi_al(guild_id: int) -> list[dict]:
+    """Bu sunucunun partner işlem geçmişini döndürür."""
+    ayarlar = ayarlari_yukle()
+    gecmis = ayarlar.get(str(guild_id), {}).get("partner_gecmisi", [])
+    return gecmis if isinstance(gecmis, list) else []
+
+
 def partner_kaydet_db(guild_id: int, hedef_guild_id: int, veri: dict):
     """Bir partner kaydını settings.json'a yazar."""
     def _guncelle(ayarlar):
@@ -1809,6 +1816,21 @@ def partner_kaydet_db(guild_id: int, hedef_guild_id: int, veri: dict):
         if "partners" not in ayarlar[guild_key]:
             ayarlar[guild_key]["partners"] = {}
         ayarlar[guild_key]["partners"][str(hedef_guild_id)] = veri
+
+    ayarlari_guncelle(_guncelle)
+
+
+def partner_gecmisi_ekle(guild_id: int, veri: dict):
+    """Partner işlemini geçmiş listesine ekler."""
+    def _guncelle(ayarlar):
+        guild_key = str(guild_id)
+        if guild_key not in ayarlar:
+            ayarlar[guild_key] = {}
+        gecmis = ayarlar[guild_key].get("partner_gecmisi", [])
+        if not isinstance(gecmis, list):
+            gecmis = []
+        gecmis.append(veri)
+        ayarlar[guild_key]["partner_gecmisi"] = gecmis[-5000:]
 
     ayarlari_guncelle(_guncelle)
 
@@ -1838,25 +1860,30 @@ def partner_istatistik_hesapla(guild_id: int) -> dict:
         - Her partner kaydındaki 'zaman' alanı ISO format datetime'dır.
         - Şu anki zamandan farkı hesaplayarak hangi periyoda girdiğini belirleriz.
     """
+    gecmis = partner_gecmisi_al(guild_id)
     partners = partner_verisi_al(guild_id)
     simdi = datetime.now(timezone.utc)
 
     gunluk = haftalik = aylik = toplam = 0
 
-    for p in partners.values():
+    kaynak = gecmis if gecmis else list(partners.values())
+
+    for p in kaynak:
         try:
             zaman = utc_datetime_from_iso(p["zaman"])
         except Exception:
             continue
 
-        fark = simdi - zaman
+        fark_saniye = (simdi - zaman).total_seconds()
+        if fark_saniye < 0:
+            continue
         toplam += 1
 
-        if fark.days < 1:
+        if fark_saniye < 86400:
             gunluk += 1
-        if fark.days < 7:
+        if fark_saniye < 86400 * 7:
             haftalik += 1
-        if fark.days < 30:
+        if fark_saniye < 86400 * 30:
             aylik += 1
 
     return {
@@ -2132,6 +2159,7 @@ async def partner_sifirla(ctx):
             gk = str(interaction.guild_id)
             if gk in ayarlar:
                 ayarlar[gk].pop("partners", None)
+                ayarlar[gk].pop("partner_gecmisi", None)
                 ayarlar[gk].pop("yetkili_partnerleri", None)
                 ayarlari_kaydet(ayarlar)
             await interaction.response.edit_message(embed=discord.Embed(
@@ -3014,6 +3042,13 @@ async def on_message(message: discord.Message):
                 "son_partner": simdi.isoformat()
             }
             partner_kaydet_db(message.guild.id, davet_kodu, kayit)
+            partner_gecmisi_ekle(message.guild.id, {
+                "guild_name": sunucu_adi,
+                "guild_id": davet_kodu,
+                "yapan": str(message.author),
+                "yapan_id": message.author.id,
+                "zaman": simdi.isoformat(),
+            })
 
             yetkili_partner_sayisi_guncelle(message.guild.id, message.author.id, str(message.author))
 
