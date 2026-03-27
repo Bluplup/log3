@@ -4487,16 +4487,17 @@ async def anime_rol_panel(ctx):
             super().__init__(placeholder=f"Anime rolu sec • Sayfa {sayfa + 1}", min_values=1, max_values=1, options=secenekler)
 
         async def callback(self, interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
             mevcut_anime_rolleri = [rol for rol in roller if rol in interaction.user.roles]
             if mevcut_anime_rolleri:
                 await interaction.user.remove_roles(*mevcut_anime_rolleri, reason="Anime rol secimi guncellendi")
             if self.values[0] == "clear":
-                await interaction.response.send_message("Uzerindeki anime rolleri temizlendi.", ephemeral=True)
+                await interaction.followup.send("Uzerindeki anime rolleri temizlendi.", ephemeral=True)
                 return
             secilen = interaction.guild.get_role(int(self.values[0]))
             if secilen:
                 await interaction.user.add_roles(secilen, reason="Anime rol paneli secimi")
-                await interaction.response.send_message(f"Anime rolun basariyla {secilen.mention} olarak ayarlandi.", ephemeral=True)
+                await interaction.followup.send(f"Anime rolun basariyla {secilen.mention} olarak ayarlandi.", ephemeral=True)
 
     class AnimeRolView(discord.ui.View):
         def __init__(self, sayfa: int = 0):
@@ -4507,13 +4508,15 @@ async def anime_rol_panel(ctx):
 
         @discord.ui.button(label="Onceki", style=discord.ButtonStyle.secondary)
         async def onceki(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
             yeni_sayfa = (self.sayfa - 1) % self.sayfa_sayisi
-            await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolView(yeni_sayfa))
+            await interaction.message.edit(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolView(yeni_sayfa))
 
         @discord.ui.button(label="Sonraki", style=discord.ButtonStyle.secondary)
         async def sonraki(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
             yeni_sayfa = (self.sayfa + 1) % self.sayfa_sayisi
-            await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolView(yeni_sayfa))
+            await interaction.message.edit(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolView(yeni_sayfa))
 
     await ctx.send(embed=anime_panel_embedi(0), view=AnimeRolView(0))
 
@@ -4559,12 +4562,12 @@ async def anime_rol_panel_v2(ctx):
             super().__init__(placeholder=f"Anime rol(ler)i sec • Sayfa {sayfa + 1}", min_values=1, max_values=max(1, len(secenekler)), options=secenekler)
 
         async def callback(self, interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
             secilen_roller = [interaction.guild.get_role(int(rol_id)) for rol_id in self.values]
             secilen_roller = [rol for rol in secilen_roller if rol]
             if not secilen_roller:
-                await interaction.response.send_message("Gecerli bir anime rolu secilmedi.", ephemeral=True)
+                await interaction.followup.send("Gecerli bir anime rolu secilmedi.", ephemeral=True)
                 return
-            await interaction.response.defer(ephemeral=True)
             for index in range(0, len(secilen_roller), 5):
                 parcali = secilen_roller[index:index + 5]
                 await interaction.user.add_roles(*parcali, reason="Anime rol paneli secimi")
@@ -4582,13 +4585,15 @@ async def anime_rol_panel_v2(ctx):
 
         @discord.ui.button(label="Onceki", style=discord.ButtonStyle.secondary)
         async def onceki(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
             yeni_sayfa = (self.sayfa - 1) % self.sayfa_sayisi
-            await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolViewV2(yeni_sayfa))
+            await interaction.message.edit(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolViewV2(yeni_sayfa))
 
         @discord.ui.button(label="Sonraki", style=discord.ButtonStyle.secondary)
         async def sonraki(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
             yeni_sayfa = (self.sayfa + 1) % self.sayfa_sayisi
-            await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolViewV2(yeni_sayfa))
+            await interaction.message.edit(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolViewV2(yeni_sayfa))
 
         @discord.ui.button(label="Tum Anime Rollerini Temizle", style=discord.ButtonStyle.danger)
         async def temizle(self, interaction: discord.Interaction, button: discord.ui.Button):
