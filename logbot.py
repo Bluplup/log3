@@ -4030,7 +4030,7 @@ async def renk_panel(ctx):
 
     class RenkView(discord.ui.View):
         def __init__(self):
-            super().__init__(timeout=600)
+            super().__init__(timeout=None)
             self.add_item(RenkSec())
 
     rol_listesi = "\n".join(f"`{i+1}.` {rol.mention}" for i, rol in enumerate(roller[:12]))
