@@ -19,6 +19,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import asyncio
 import html
 import io
@@ -60,6 +61,7 @@ _supabase_fail_count = 0
 _ayar_cache_veri = None
 _ayar_cache_zaman = 0.0
 _AYAR_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "8"))
+YEREL_SAAT_DILIMI = ZoneInfo(os.environ.get("BOT_TIMEZONE", "Europe/Istanbul"))
 
 
 def supabase_aktif_mi() -> bool:
@@ -601,6 +603,28 @@ def utc_datetime_from_iso(value: str) -> datetime:
 def zaman_damgasi() -> str:
     now = datetime.now(timezone.utc)
     return now.strftime("📅 %d.%m.%Y — ⏰ %H:%M:%S UTC")
+
+
+def hata_embedi(title: str, description: str) -> discord.Embed:
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_footer(text=zaman_damgasi())
+    return embed
+
+
+def kullanim_embedi(description: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="Komut Kullanımı",
+        description=description,
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_footer(text=zaman_damgasi())
+    return embed
 
 
 class TicketControlView(discord.ui.View):
@@ -1697,11 +1721,11 @@ async def on_command_error(ctx, error):
     if isinstance(error, PrefixMesajCiftKopya):
         return  # Çift bot süreci: ikinci kopya sessizce yoksayılır
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Bu komutu kullanmak için yetkin yok.")
+        await ctx.send(embed=hata_embedi("Yetki Hatası", "Bu komutu kullanmak için gerekli yetkiye sahip değilsin."))
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ Üye bulunamadı.")
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"❌ Eksik parametre. ``.yardım` ile kullanımı görebilirsin.")
+        await ctx.send(embed=kullanim_embedi("Eksik parametre girdin. Detaylı komut listesi için `.yardım` kullanabilirsin."))
 
 
 @bot.event
@@ -1862,7 +1886,10 @@ def partner_istatistik_hesapla(guild_id: int) -> dict:
     """
     gecmis = partner_gecmisi_al(guild_id)
     partners = partner_verisi_al(guild_id)
-    simdi = datetime.now(timezone.utc)
+    simdi = datetime.now(timezone.utc).astimezone(YEREL_SAAT_DILIMI)
+    bugun = simdi.date()
+    bu_hafta = simdi.isocalendar()[:2]
+    bu_ay = (simdi.year, simdi.month)
 
     gunluk = haftalik = aylik = toplam = 0
 
@@ -1870,20 +1897,19 @@ def partner_istatistik_hesapla(guild_id: int) -> dict:
 
     for p in kaynak:
         try:
-            zaman = utc_datetime_from_iso(p["zaman"])
+            zaman = utc_datetime_from_iso(p["zaman"]).astimezone(YEREL_SAAT_DILIMI)
         except Exception:
             continue
 
-        fark_saniye = (simdi - zaman).total_seconds()
-        if fark_saniye < 0:
+        if zaman > simdi:
             continue
         toplam += 1
 
-        if fark_saniye < 86400:
+        if zaman.date() == bugun:
             gunluk += 1
-        if fark_saniye < 86400 * 7:
+        if zaman.isocalendar()[:2] == bu_hafta:
             haftalik += 1
-        if fark_saniye < 86400 * 30:
+        if (zaman.year, zaman.month) == bu_ay:
             aylik += 1
 
     return {
@@ -1981,7 +2007,7 @@ async def partner_kur(ctx, text_kanal: discord.TextChannel = None, log_kanal: di
     Partner text ve log kanallarını ayarlar.
     """
     if not text_kanal or not log_kanal:
-        await ctx.send("📌 Kullanım: `.partner-kur #text-kanal #log-kanal`")
+        await ctx.send(embed=kullanim_embedi("`.partner-kur #text-kanal #log-kanal`"))
         return
 
     partner_kanal_id_kaydet(ctx.guild.id, text_kanal.id)
@@ -2276,7 +2302,7 @@ async def ban(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilme
     """.ban @üye [sebep]"""
     uye = await hedef_uye_bul(ctx, uye)
     if uye is None:
-        await ctx.send("Kullanim: `.ban @uye [sebep]` veya bir mesaja yanit verip `.ban [sebep]`")
+        await ctx.send(embed=kullanim_embedi("`.ban @uye [sebep]` veya bir mesaja yanit verip `.ban [sebep]`"))
         return
     if uye == ctx.author:
         await ctx.send("❌ Kendinizi banlayamazsınız."); return
@@ -2307,9 +2333,9 @@ async def ban_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Ban yetkine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ Üye bulunamadı.")
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("📌 Kullanım: ``.ban @üye [sebep]`")
+        await ctx.send(embed=kullanim_embedi("`.ban @üye [sebep]`"))
 
 
 # ── !unban ───────────────────────────────────────────────────────
@@ -2346,7 +2372,7 @@ async def unban_hata(ctx, error):
 async def kick(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilmedi"):
     uye = await hedef_uye_bul(ctx, uye)
     if uye is None:
-        await ctx.send("Kullanim: `.kick @uye [sebep]` veya bir mesaja yanit verip `.kick [sebep]`")
+        await ctx.send(embed=kullanim_embedi("`.kick @uye [sebep]` veya bir mesaja yanit verip `.kick [sebep]`"))
         return
     """.kick @üye [sebep]"""
     if uye == ctx.author:
@@ -2378,9 +2404,9 @@ async def kick_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Kick yetkine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ Üye bulunamadı.")
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("📌 Kullanım: ``.kick @üye [sebep]`")
+        await ctx.send(embed=kullanim_embedi("`.kick @üye [sebep]`"))
 
 
 # ── .mute (timeout) ──────────────────────────────────────────────
@@ -2432,9 +2458,9 @@ async def mute_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ Timeout yetkine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ Üye bulunamadı.")
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("📌 Kullanım: `.mute @üye [süre] [sebep]`")
+        await ctx.send(embed=kullanim_embedi("`.mute @üye [süre] [sebep]`"))
 
 
 # ── !unmute ──────────────────────────────────────────────────────
