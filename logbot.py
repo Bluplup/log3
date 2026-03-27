@@ -4305,6 +4305,28 @@ async def anime_rollari_kaldir(ctx):
     ))
 
 
+@bot.command(name="asagitasi", aliases=["roltasiasagi", "rol-en-asa"])
+@commands.has_permissions(manage_roles=True)
+async def asagi_tasi(ctx, rol: discord.Role = None):
+    if not rol:
+        await ctx.send(embed=kullanim_embedi("`.asagitasi @rol`\nEtiketledigin rolu tasinabilecek en alt siraya indirir."))
+        return
+    if rol >= ctx.guild.me.top_role:
+        await ctx.send(embed=hata_embedi("Rol Hiyerarsisi Hatasi", "Bu rol botun en ust rolunden yukarida oldugu icin tasinamaz."))
+        return
+    try:
+        await rol.edit(position=1, reason=f"{ctx.author} tarafindan en alta tasindi")
+    except discord.Forbidden:
+        await ctx.send(embed=hata_embedi("Rol Tasima Hatasi", "Bu rolu en alta tasimaya yetkim yetmedi."))
+        return
+    await ctx.send(embed=discord.Embed(
+        title="Rol En Alta Tasindi",
+        description=f"{rol.mention} rolu tasinabilecek en alt siraya indirildi.",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    ))
+
+
 @bot.command(name="animerolpanel", aliases=["anime-rol-panel"])
 @commands.has_permissions(manage_roles=True)
 async def anime_rol_panel(ctx):
@@ -4373,6 +4395,85 @@ async def anime_rol_panel(ctx):
             await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolView(yeni_sayfa))
 
     await ctx.send(embed=anime_panel_embedi(0), view=AnimeRolView(0))
+
+
+bot.remove_command("animerolpanel")
+
+
+@bot.command(name="animerolpanel", aliases=["anime-rol-panel"])
+@commands.has_permissions(manage_roles=True)
+async def anime_rol_panel_v2(ctx):
+    roller = [ctx.guild.get_role(rol_id) for rol_id in anime_rollari_al(ctx.guild.id)]
+    roller = [rol for rol in roller if rol]
+    if not roller:
+        await ctx.send(embed=kullanim_embedi("Once `.animerollerikur` komutunu kullanarak anime rollerini kurmalisin."))
+        return
+
+    def anime_panel_embedi(sayfa: int) -> discord.Embed:
+        baslangic = sayfa * 24
+        sayfa_rolleri = roller[baslangic:baslangic + 24]
+        liste = "\n".join(f"`{baslangic + i + 1}.` {rol.mention}" for i, rol in enumerate(sayfa_rolleri))
+        embed = discord.Embed(
+            title="Anime Rol Menusu",
+            description="Asagidaki menuden istedigin kadar anime rolu secebilirsin. Rollerin birikir; istersen temizleme butonuyla hepsini tek seferde silebilirsin.",
+            color=RENKLER["rol"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(name="Roller", value=liste or "Rol bulunamadi.", inline=False)
+        embed.set_footer(text=f"Sayfa {sayfa + 1}/{max(1, (len(roller) + 23) // 24)} • Toplam {len(roller)} anime rolu")
+        return embed
+
+    class AnimeRolSecV2(discord.ui.Select):
+        def __init__(self, sayfa: int):
+            baslangic = sayfa * 24
+            sayfa_rolleri = roller[baslangic:baslangic + 24]
+            secenekler = [
+                discord.SelectOption(
+                    label=rol.name[:100],
+                    value=str(rol.id),
+                    description=f"{len(rol.members)} uye kullaniyor"[:100]
+                )
+                for rol in sayfa_rolleri
+            ]
+            super().__init__(placeholder=f"Anime rol(ler)i sec • Sayfa {sayfa + 1}", min_values=1, max_values=max(1, len(secenekler)), options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            secilen_roller = [interaction.guild.get_role(int(rol_id)) for rol_id in self.values]
+            secilen_roller = [rol for rol in secilen_roller if rol]
+            if not secilen_roller:
+                await interaction.response.send_message("Gecerli bir anime rolu secilmedi.", ephemeral=True)
+                return
+            await interaction.user.add_roles(*secilen_roller, reason="Anime rol paneli secimi")
+            await interaction.response.send_message(
+                f"Anime rollerin eklendi: {', '.join(rol.mention for rol in secilen_roller[:10])}",
+                ephemeral=True
+            )
+
+    class AnimeRolViewV2(discord.ui.View):
+        def __init__(self, sayfa: int = 0):
+            super().__init__(timeout=None)
+            self.sayfa = sayfa
+            self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
+            self.add_item(AnimeRolSecV2(sayfa))
+
+        @discord.ui.button(label="Onceki", style=discord.ButtonStyle.secondary)
+        async def onceki(self, interaction: discord.Interaction, button: discord.ui.Button):
+            yeni_sayfa = (self.sayfa - 1) % self.sayfa_sayisi
+            await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolViewV2(yeni_sayfa))
+
+        @discord.ui.button(label="Sonraki", style=discord.ButtonStyle.secondary)
+        async def sonraki(self, interaction: discord.Interaction, button: discord.ui.Button):
+            yeni_sayfa = (self.sayfa + 1) % self.sayfa_sayisi
+            await interaction.response.edit_message(embed=anime_panel_embedi(yeni_sayfa), view=AnimeRolViewV2(yeni_sayfa))
+
+        @discord.ui.button(label="Tum Anime Rollerini Temizle", style=discord.ButtonStyle.danger)
+        async def temizle(self, interaction: discord.Interaction, button: discord.ui.Button):
+            mevcut_anime_rolleri = [rol for rol in roller if rol in interaction.user.roles]
+            if mevcut_anime_rolleri:
+                await interaction.user.remove_roles(*mevcut_anime_rolleri, reason="Anime rol paneli temizleme")
+            await interaction.response.send_message("Uzerindeki tum anime rolleri temizlendi.", ephemeral=True)
+
+    await ctx.send(embed=anime_panel_embedi(0), view=AnimeRolViewV2(0))
 
 
 import random
