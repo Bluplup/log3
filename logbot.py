@@ -2873,7 +2873,7 @@ async def gelismis_yardim_v3(ctx):
     await ctx.send(embed=ana_embed(), view=HelpView())
 
 
-@bot.command(name="yardım", aliases=["yardim", "help"])
+@bot.command(name="yardım")
 async def yardim(ctx):
     if not hasattr(bot, "_help_seen_message_ids"):
         bot._help_seen_message_ids = set()
