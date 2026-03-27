@@ -2828,7 +2828,7 @@ async def gelismis_yardim_v3(ctx):
 
     def araclar_embed():
         e = embed_taban("Araclar ve Sistemler", "Kurulum ve sunucu sistemleri tek yerde.", 0x9B59B6)
-        e.add_field(name="Ticket", value="`.ticketkur [kategori] #log @rol`\n`.ticketpanel`\n`.ticketkapat` • `.ticketekle` • `.ticketcikar`\n`.ticketkonu` • `.ticketlist` • `.ticketsayi`\n`.ticketoncelik` • `.ticketsahip` • `.ticketyeniden`", inline=False)
+        e.add_field(name="Ticket", value="`.ticketkur [kategori] #log @rol [@rol2 ...]`\n`.ticketpanel`\n`.ticketkapat` • `.ticketekle` • `.ticketcikar`\n`.ticketkonu` • `.ticketlist` • `.ticketsayi`\n`.ticketoncelik` • `.ticketsahip` • `.ticketyeniden`", inline=False)
         e.add_field(name="Log", value="`.logkur`\n`.logkurkanal`\n`/log-kur` • `/log-kaldir`\n`/log-durum` • `/log-sifirla`", inline=False)
         e.add_field(name="Level", value="`.levelkur`\n`.levelrol <seviye> @rol`\n`.levelrolsil <seviye>`\n`.levelrolleri`\n`.levelmesajtest [@uye]`\n`.leveldurum` • `.seviye [@uye]`", inline=False)
         e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
@@ -3445,7 +3445,12 @@ async def cekilisbilgi(ctx, mesaj_id: int = None):
 # ═══════════════════════════════════════════════════════════════
 
 def ticket_ayar_al(guild_id: int) -> dict:
-    return ayarlari_yukle().get(str(guild_id), {}).get("ticket", {})
+    veri = ayarlari_yukle().get(str(guild_id), {}).get("ticket", {})
+    rol_idleri = veri.get("rol_ids")
+    if not rol_idleri and veri.get("rol"):
+        rol_idleri = [veri.get("rol")]
+    veri["rol_ids"] = [rid for rid in (rol_idleri or []) if rid]
+    return veri
 
 def ticket_ayar_kaydet(guild_id: int, veri: dict):
     def _guncelle(ayarlar):
@@ -3572,22 +3577,28 @@ async def _ticket_kapat_logu_ve_transkript(channel: discord.TextChannel, kapatan
 
 @bot.command(name="ticketkur", aliases=["ticket-kur"])
 @commands.has_permissions(administrator=True)
-async def ticket_kur(ctx, kategori: discord.CategoryChannel = None, log: discord.TextChannel = None, destek_rolu: discord.Role = None):
+async def ticket_kur(ctx, kategori: discord.CategoryChannel = None, log: discord.TextChannel = None, *destek_rolleri: discord.Role):
     """
-    .ticketkur [kategori] #log-kanal @destek-rolü
+    .ticketkur [kategori] #log-kanal @destek-rolü [@destek-rolü-2 ...]
     Ticket sistemini kurar.
     """
-    if not kategori or not log or not destek_rolu:
-        await ctx.send("📌 Kullanım: `.ticketkur [kategori] #log-kanal @destek-rolü`"); return
+    if not kategori or not log or not destek_rolleri:
+        await ctx.send(embed=kullanim_embedi("`.ticketkur [kategori] #log-kanal @destek-rolü [@destek-rolü-2 ...]`")); return
+
+    destek_rolleri = list(dict.fromkeys(rol.id for rol in destek_rolleri if rol))
+    if not destek_rolleri:
+        await ctx.send(embed=hata_embedi("Destek Rolü Gerekli", "Ticket sistemi için en az bir destek rolü belirtmelisin."))
+        return
 
     mevcut = ticket_ayar_al(ctx.guild.id)
-    mevcut.update({"kategori": kategori.id, "log": log.id, "rol": destek_rolu.id})
+    mevcut.update({"kategori": kategori.id, "log": log.id, "rol_ids": destek_rolleri, "rol": destek_rolleri[0]})
     ticket_ayar_kaydet(ctx.guild.id, mevcut)
 
     embed = discord.Embed(title="✅ Ticket Sistemi Kuruldu", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc))
     embed.add_field(name="📁 Kategori",    value=kategori.name,      inline=True)
     embed.add_field(name="📋 Log",         value=log.mention,         inline=True)
-    embed.add_field(name="🛡️ Destek Rolü", value=destek_rolu.mention, inline=True)
+    destek_rol_mentionlari = [ctx.guild.get_role(rid).mention for rid in destek_rolleri if ctx.guild.get_role(rid)]
+    embed.add_field(name="🛡️ Destek Rolleri", value=", ".join(destek_rol_mentionlari) if destek_rol_mentionlari else "Yok", inline=False)
     embed.set_footer(text=zaman_damgasi())
     await ctx.send(embed=embed)
 
@@ -3608,7 +3619,8 @@ async def ticket_panel(ctx):
         async def ticket_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
             ayar        = ticket_ayar_al(interaction.guild_id)
             kategori    = interaction.guild.get_channel(ayar.get("kategori"))
-            destek_rolu = interaction.guild.get_role(ayar.get("rol"))
+            destek_rolleri = [interaction.guild.get_role(rid) for rid in ayar.get("rol_ids", [])]
+            destek_rolleri = [rol for rol in destek_rolleri if rol]
             log_id      = ayar.get("log")
 
             if not kategori:
@@ -3627,7 +3639,7 @@ async def ticket_panel(ctx):
                 interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
                 interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True),
             }
-            if destek_rolu:
+            for destek_rolu in destek_rolleri:
                 overwrites[destek_rolu] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
             ticket_kanal = await kategori.create_text_channel(
@@ -3662,6 +3674,9 @@ async def ticket_panel(ctx):
 
                 @discord.ui.button(label="👥 Üye Ekle", style=discord.ButtonStyle.secondary, custom_id=f"ticket_uyeekle_{ticket_kanal.id}")
                 async def uye_ekle(self, i2: discord.Interaction, b: discord.ui.Button):
+                    if destek_rolleri and not any(rol in i2.user.roles for rol in destek_rolleri) and not i2.user.guild_permissions.administrator:
+                        await i2.response.send_message("❌ Bu işlem için destek rolü veya yönetici yetkisi gerekli.", ephemeral=True)
+                        return
                     await i2.response.send_message("Eklemek istediğin kullanıcıyı etiketle: (örn: @kullanıcı)", ephemeral=True)
 
                     def check(m):
@@ -3678,7 +3693,7 @@ async def ticket_panel(ctx):
 
                 @discord.ui.button(label="📋 Talep Al", style=discord.ButtonStyle.success, custom_id=f"ticket_talep_{ticket_kanal.id}")
                 async def talep_al(self, i2: discord.Interaction, b: discord.ui.Button):
-                    if destek_rolu and destek_rolu not in i2.user.roles and not i2.user.guild_permissions.administrator:
+                    if destek_rolleri and not any(rol in i2.user.roles for rol in destek_rolleri) and not i2.user.guild_permissions.administrator:
                         await i2.response.send_message("❌ Bu işlem için destek rolü gerekli.", ephemeral=True); return
                     await ticket_kanal.edit(topic=f"{ticket_kanal.topic} | Talep: {i2.user}")
                     await i2.response.send_message(f"✅ Ticket {i2.user.mention} tarafından talep alındı.")
@@ -3695,7 +3710,7 @@ async def ticket_panel(ctx):
             ac_embed.set_footer(text=f"Ticket #{sayi:04d} • {zaman_damgasi()}")
 
             await ticket_kanal.send(
-                content=f"{interaction.user.mention}{(' ' + destek_rolu.mention) if destek_rolu else ''}",
+                content=" ".join([interaction.user.mention] + [rol.mention for rol in destek_rolleri]),
                 embed=ac_embed,
                 view=TicketKontrolView()
             )
