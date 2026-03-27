@@ -2956,6 +2956,224 @@ async def yardim(ctx):
 import re
 LINK_REGEX = re.compile(r'https?://\S+|discord\.gg/\S+|www\.\S+', re.IGNORECASE)
 
+
+@bot.command(name="uygulamakomutkapat", aliases=["appkomutkapat", "uygulamaizinlerinikapat"])
+@commands.has_permissions(administrator=True)
+async def uygulama_komut_kapat(ctx):
+    kanal_sayisi = 0
+    kategori_sayisi = 0
+    hedef_roller = [rol for rol in ctx.guild.roles if not rol.managed]
+
+    for kanal in ctx.guild.channels:
+        if isinstance(kanal, discord.CategoryChannel):
+            kategori_sayisi += 1
+        else:
+            kanal_sayisi += 1
+        for rol in hedef_roller:
+            overwrite = kanal.overwrites_for(rol)
+            overwrite.use_application_commands = False
+            overwrite.use_embedded_activities = False
+            overwrite.use_external_apps = False
+            await kanal.set_permissions(rol, overwrite=overwrite, reason=f"{ctx.author} tarafindan uygulama izinleri kapatildi")
+
+    embed = discord.Embed(
+        title="Uygulama Izinleri Kapatildi",
+        description="Tum roller icin kanal ve kategorilerde uygulama komutlari, kullanici etkinlikleri ve harici uygulama komutlari kapatildi.",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Rol", value=str(len(hedef_roller)), inline=True)
+    embed.add_field(name="Kanal", value=str(kanal_sayisi), inline=True)
+    embed.add_field(name="Kategori", value=str(kategori_sayisi), inline=True)
+    await ctx.send(embed=embed)
+
+
+def _yardim_kategori_haritasi():
+    return {
+        "Ayarlar": {"partner-kur", "partner-kapat", "logkur", "logkurkanal", "ticketkur", "ticketpanel", "levelkur", "hosgeldinkur", "karsilamakur", "guvenlikkur", "guvenlikdurum", "guvenlikkapat", "guvenlikizin", "guvenlikizinsil", "antilink", "uygulamakomutkapat"},
+        "Moderasyon": {"ban", "unban", "kick", "mute", "unmute", "sil", "warn", "uyarılar", "uyarısil", "slowmode", "duyuru"},
+        "Roller": {"renkekle", "renkcikar", "renklist", "renkpanel", "animerollerikur", "animerollerikaldir", "animerolpanel", "asagitasi", "levelrol", "levelrolsil", "levelrolleri"},
+        "Sistemler": {"ticketekle", "ticketcikar", "ticketkapat", "ticketkonu", "ticketlist", "ticketsayi", "ticketoncelik", "ticketsahip", "ticketyeniden", "hosgeldindurum", "hosgeldinmesajtest", "karsilamadurum", "karsilamatest", "leveldurum", "levelmesajtest"},
+        "Kullanici": {"profil", "seviye", "sunucu", "afk", "partner-istatistik", "partner-top", "partner-liste", "partner-sifirla"},
+        "Eglence": {"cekilisbaslat", "cekilisbitir", "çekilişkatılımcı", "çekilişsil", "çekilişyenile", "çekilişbilgi"},
+        "Slash": {"log-kur", "log-kaldir", "log-durum", "log-sifirla"},
+    }
+
+
+def _yardim_sistem_haritasi():
+    return {
+        "Log": {"logkur", "logkurkanal", "log-kur", "log-kaldir", "log-durum", "log-sifirla"},
+        "Ticket": {"ticketkur", "ticketpanel", "ticketekle", "ticketcikar", "ticketkapat", "ticketkonu", "ticketlist", "ticketsayi", "ticketoncelik", "ticketsahip", "ticketyeniden"},
+        "Partner": {"partner-kur", "partner-kapat", "partner-istatistik", "partner-top", "partner-liste", "partner-sifirla"},
+        "Level": {"levelkur", "leveldurum", "levelmesajtest", "seviye", "profil", "levelrol", "levelrolsil", "levelrolleri"},
+        "Hosgeldin": {"hosgeldinkur", "hosgeldindurum", "hosgeldinmesajtest", "karsilamakur", "karsilamadurum", "karsilamatest"},
+        "Guvenlik": {"guvenlikkur", "guvenlikdurum", "guvenlikkapat", "guvenlikizin", "guvenlikizinsil", "uygulamakomutkapat"},
+        "Rol Panelleri": {"renkekle", "renkcikar", "renklist", "renkpanel", "animerollerikur", "animerollerikaldir", "animerolpanel", "asagitasi"},
+        "Eglence": {"cekilisbaslat", "cekilisbitir", "çekilişkatılımcı", "çekilişsil", "çekilişyenile", "çekilişbilgi", "afk"},
+        "Moderasyon": {"ban", "unban", "kick", "mute", "unmute", "sil", "warn", "uyarılar", "uyarısil", "slowmode", "duyuru"},
+    }
+
+
+def _yardim_komutlarini_topla():
+    prefix_komutlar = {}
+    for komut in bot.commands:
+        if komut.hidden or komut.name in {"yardÄ±m", "yardim", "help"}:
+            continue
+        prefix_komutlar[komut.name] = komut
+
+    slash_komutlar = {}
+    for komut in bot.tree.get_commands():
+        slash_komutlar[komut.name] = komut
+
+    kategori_haritasi = _yardim_kategori_haritasi()
+    sonuc = {kategori: [] for kategori in kategori_haritasi}
+    sonuc["Diger"] = []
+
+    for ad, komut in prefix_komutlar.items():
+        kayit = {"ad": ad, "gosterim": f".{ad}", "aciklama": (komut.help or komut.brief or "Prefix komutu").strip(), "aliases": list(getattr(komut, "aliases", []) or [])}
+        eklendi = False
+        for kategori, adlar in kategori_haritasi.items():
+            if ad in adlar:
+                sonuc[kategori].append(kayit)
+                eklendi = True
+                break
+        if not eklendi:
+            sonuc["Diger"].append(kayit)
+
+    for ad, komut in slash_komutlar.items():
+        sonuc["Slash"].append({"ad": ad, "gosterim": f"/{ad}", "aciklama": (getattr(komut, "description", None) or "Slash komutu").strip(), "aliases": []})
+
+    for liste in sonuc.values():
+        liste.sort(key=lambda x: x["gosterim"])
+    return sonuc
+
+
+def _yardim_komut_metni(kayitlar):
+    satirlar = []
+    for kayit in kayitlar:
+        alias_metni = f"\nKisayollar: {', '.join(f'.{a}' for a in kayit['aliases'][:3])}" if kayit["aliases"] else ""
+        satirlar.append(f"`{kayit['gosterim']}`\n{kayit['aciklama'][:110]}{alias_metni}")
+    return satirlar or ["Komut bulunamadi."]
+
+
+def _yardim_parcalari(satirlar, limit=900):
+    parcalar = []
+    mevcut = ""
+    for satir in satirlar:
+        ek = satir + "\n\n"
+        if len(mevcut) + len(ek) > limit and mevcut:
+            parcalar.append(mevcut.rstrip())
+            mevcut = ek
+        else:
+            mevcut += ek
+    if mevcut:
+        parcalar.append(mevcut.rstrip())
+    return parcalar or ["Komut bulunamadi."]
+
+
+for _eski in ("yardim", "help", "yardÄ±m"):
+    try:
+        bot.remove_command(_eski)
+    except Exception:
+        pass
+
+
+@bot.command(name="yardim", aliases=["yardım", "help"])
+async def yeni_yardim(ctx):
+    komutlar = _yardim_komutlarini_topla()
+    sistem_haritasi = _yardim_sistem_haritasi()
+
+    def temel_embed(baslik: str, aciklama: str) -> discord.Embed:
+        embed = discord.Embed(title=baslik, description=aciklama, color=0x1F2335, timestamp=datetime.now(timezone.utc))
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+            embed.set_author(name=f"{ctx.guild.name} Komutlar", icon_url=ctx.guild.icon.url)
+        else:
+            embed.set_author(name=f"{ctx.guild.name} Komutlar")
+        embed.set_footer(text=f"Toplam {sum(len(v) for v in komutlar.values())} komut • {zaman_damgasi()}")
+        return embed
+
+    def ana_embed():
+        embed = temel_embed("Komut Menusu", "Kategori ve sistem secicilerinden istedigin bolume gecebilirsin.")
+        kategori_ozet = [f"`{kategori}` ({len(kayitlar)})" for kategori, kayitlar in komutlar.items() if kayitlar]
+        embed.add_field(name="Kategoriler", value="\n".join(kategori_ozet[:8]) or "-", inline=True)
+        sistem_ozet = []
+        for sistem, adlar in sistem_haritasi.items():
+            sayi = sum(1 for liste in komutlar.values() for kayit in liste if kayit["ad"] in adlar)
+            sistem_ozet.append(f"`{sistem}` ({sayi})")
+        embed.add_field(name="Sistemler", value="\n".join(sistem_ozet[:9]) or "-", inline=True)
+        embed.add_field(name="Hizli Baslangic", value="`.profil`\n`.ticketpanel`\n`.levelkur`\n`.hosgeldinkur`\n`.uygulamakomutkapat`", inline=False)
+        return embed
+
+    def kategori_embed(kategori: str):
+        kayitlar = komutlar.get(kategori, [])
+        embed = temel_embed(f"{kategori} Komutlari", f"Bu kategorideki tum komutlar listeleniyor.")
+        for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(kayitlar))[:6]):
+            embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
+        return embed
+
+    def sistem_embed(sistem: str):
+        adlar = sistem_haritasi.get(sistem, set())
+        kayitlar = []
+        for liste in komutlar.values():
+            kayitlar.extend([kayit for kayit in liste if kayit["ad"] in adlar])
+        kayitlar.sort(key=lambda x: x["gosterim"])
+        embed = temel_embed(f"{sistem} Sistemi", f"{sistem} ile ilgili tum komutlar burada.")
+        for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(kayitlar))[:6]):
+            embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
+        return embed
+
+    class KategoriSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=kategori, value=kategori, description=f"{len(kayitlar)} komut") for kategori, kayitlar in komutlar.items() if kayitlar]
+            super().__init__(placeholder="Kategoriler", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
+
+    class SistemSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=sistem, value=sistem, description="Sistem komutlarini gosterir") for sistem in sistem_haritasi]
+            super().__init__(placeholder="Sistemler", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            await interaction.response.edit_message(embed=sistem_embed(self.values[0]), view=view)
+
+    class MenuSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label="Ana Menu", value="ana", description="Ozet ekrana don"),
+                discord.SelectOption(label="Tum Komutlar", value="tum", description="Tum aktif komutlari tek listede goster"),
+            ]
+            super().__init__(placeholder="Yardim Menusu", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if self.values[0] == "ana":
+                await interaction.response.edit_message(embed=ana_embed(), view=view)
+                return
+            tum = []
+            for kategori in ["Ayarlar", "Moderasyon", "Roller", "Sistemler", "Kullanici", "Eglence", "Slash", "Diger"]:
+                tum.extend(komutlar.get(kategori, []))
+            tum.sort(key=lambda x: x["gosterim"])
+            embed = temel_embed("Tum Komutlar", "Koddaki tum aktif komutlar burada listeleniyor.")
+            for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(tum), limit=850)[:8]):
+                embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
+            await interaction.response.edit_message(embed=embed, view=view)
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+            self.add_item(KategoriSec())
+            self.add_item(SistemSec())
+            self.add_item(MenuSec())
+
+        @discord.ui.button(label="Ana Menu", style=discord.ButtonStyle.secondary, row=3)
+        async def ana(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.edit_message(embed=ana_embed(), view=self)
+
+    view = HelpView()
+    await ctx.send(embed=ana_embed(), view=view)
+
 # ── AFK yardımcı fonksiyonlar ────────────────────────────────────
 
 def afk_kaydet(guild_id: int, user_id: int, sebep: str):
