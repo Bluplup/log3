@@ -3078,7 +3078,7 @@ for _eski in ("yardim", "help", "yardÄ±m"):
         pass
 
 
-@bot.command(name="yardim", aliases=["yardım", "help"])
+@bot.command(name="yardim", aliases=["help"])
 async def yeni_yardim(ctx):
     komutlar = _yardim_komutlarini_topla()
     sistem_haritasi = _yardim_sistem_haritasi()
