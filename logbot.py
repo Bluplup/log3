@@ -4059,6 +4059,36 @@ ANIME_ROL_RENKLERI = [
     discord.Color.from_rgb(255, 102, 153),
 ]
 
+# Terminal kodlamasi yuzunden ustteki kaynakta goruntu bozulsa bile,
+# asagidaki liste komutlar tarafinda kullanilan net anime adlaridir.
+ANIME_ROL_ISIMLERI = [
+    "꒰꒰ 🍥 ˊˎ Naruto ꒱", "꒰꒰ ☁️ ˊˎ One Piece ꒱", "꒰꒰ 🍓 ˊˎ Bleach ꒱", "꒰꒰ 🐉 ˊˎ Dragon Ball ꒱",
+    "꒰꒰ 🪽 ˊˎ Attack on Titan ꒱", "꒰꒰ ⚔️ ˊˎ Demon Slayer ꒱", "꒰꒰ 🩵 ˊˎ Jujutsu Kaisen ꒱", "꒰꒰ 🎭 ˊˎ Code Geass ꒱",
+    "꒰꒰ 📓 ˊˎ Death Note ꒱", "꒰꒰ 💫 ˊˎ Re:Zero ꒱", "꒰꒰ 🌼 ˊˎ Darling in the Franxx ꒱", "꒰꒰ 🌊 ˊˎ My Dress-Up Darling ꒱",
+    "꒰꒰ 🎵 ˊˎ Bocchi the Rock ꒱", "꒰꒰ 🧪 ˊˎ Dr. Stone ꒱", "꒰꒰ 🌈 ˊˎ Fairy Tail ꒱", "꒰꒰ 🧣 ˊˎ Tokyo Ghoul ꒱",
+    "꒰꒰ 🎣 ˊˎ Hunter x Hunter ꒱", "꒰꒰ 🔪 ˊˎ Chainsaw Man ꒱", "꒰꒰ 🌺 ˊˎ Frieren ꒱", "꒰꒰ 💤 ˊˎ Spy x Family ꒱",
+    "꒰꒰ 🌌 ˊˎ Madoka Magica ꒱", "꒰꒰ 🍡 ˊˎ Inuyasha ꒱", "꒰꒰ 🎻 ˊˎ Your Lie in April ꒱", "꒰꒰ 🎤 ˊˎ Oshi no Ko ꒱",
+    "꒰꒰ 🏐 ˊˎ Haikyuu ꒱", "꒰꒰ 🧡 ˊˎ Orange ꒱", "꒰꒰ 💌 ˊˎ Horimiya ꒱", "꒰꒰ 🌸 ˊˎ Kimi ni Todoke ꒱",
+    "꒰꒰ 🪐 ˊˎ Steins;Gate ꒱", "꒰꒰ 🦋 ˊˎ Violet Evergarden ꒱", "꒰꒰ 🥀 ˊˎ Black Butler ꒱", "꒰꒰ 🔥 ˊˎ Fire Force ꒱",
+    "꒰꒰ 🛡️ ˊˎ Shield Hero ꒱", "꒰꒰ 🎲 ˊˎ No Game No Life ꒱", "꒰꒰ 🌠 ˊˎ Sword Art Online ꒱", "꒰꒰ 🐺 ˊˎ Wolf's Rain ꒱",
+    "꒰꒰ 🧩 ˊˎ Classroom of the Elite ꒱", "꒰꒰ 💎 ˊˎ Land of the Lustrous ꒱", "꒰꒰ 🌿 ˊˎ The Ancient Magus' Bride ꒱", "꒰꒰ 🌙 ˊˎ Sailor Moon ꒱",
+    "꒰꒰ 🧸 ˊˎ Kuma Kuma Bear ꒱", "꒰꒰ 🍰 ˊˎ Food Wars ꒱", "꒰꒰ 🎹 ˊˎ Forest of Piano ꒱", "꒰꒰ 🐈 ˊˎ Natsume's Book of Friends ꒱",
+    "꒰꒰ 👑 ˊˎ The Eminence in Shadow ꒱", "꒰꒰ 🌻 ˊˎ Summer Time Rendering ꒱", "꒰꒰ 🧠 ˊˎ Monster ꒱", "꒰꒰ 🏹 ˊˎ Fate Stay Night ꒱",
+    "꒰꒰ ⚡ ˊˎ A Certain Scientific Railgun ꒱", "꒰꒰ 🎨 ˊˎ Blue Period ꒱", "꒰꒰ 📚 ˊˎ Bungou Stray Dogs ꒱", "꒰꒰ 🌹 ˊˎ Rose of Versailles ꒱",
+    "꒰꒰ 🧵 ˊˎ Kill la Kill ꒱", "꒰꒰ 🧊 ˊˎ Free ꒱", "꒰꒰ 🕊️ ˊˎ Angel Beats ꒱", "꒰꒰ 🌧️ ˊˎ Weathering With You ꒱",
+    "꒰꒰ ☂️ ˊˎ Garden of Words ꒱", "꒰꒰ ☕ ˊˎ Blend S ꒱", "꒰꒰ 🍀 ˊˎ Black Clover ꒱", "꒰꒰ 🧙 ˊˎ Little Witch Academia ꒱",
+    "꒰꒰ 🌼 ˊˎ Yona of the Dawn ꒱", "꒰꒰ 🎀 ˊˎ Cardcaptor Sakura ꒱", "꒰꒰ 🚬 ˊˎ Cowboy Bebop ꒱", "꒰꒰ 🤍 ˊˎ White Album 2 ꒱",
+    "꒰꒰ 🪄 ˊˎ Mashle ꒱", "꒰꒰ 🫧 ˊˎ Bubble ꒱", "꒰꒰ 🛰️ ˊˎ Astra Lost in Space ꒱", "꒰꒰ 💥 ˊˎ Mob Psycho 100 ꒱",
+    "꒰꒰ 🕯️ ˊˎ Hell Girl ꒱", "꒰꒰ 🐾 ˊˎ Beastars ꒱", "꒰꒰ 🎯 ˊˎ Assassination Classroom ꒱", "꒰꒰ 🌍 ˊˎ To Your Eternity ꒱",
+    "꒰꒰ 🍭 ˊˎ Noragami ꒱", "꒰꒰ 🛸 ˊˎ Gintama ꒱", "꒰꒰ 🕰️ ˊˎ Erased ꒱", "꒰꒰ 🪶 ˊˎ Princess Tutu ꒱",
+    "꒰꒰ 🧶 ˊˎ Komi Can't Communicate ꒱", "꒰꒰ 🌺 ˊˎ A Sign of Affection ꒱", "꒰꒰ 🐇 ˊˎ Is the Order a Rabbit ꒱", "꒰꒰ 🎮 ˊˎ Log Horizon ꒱",
+    "꒰꒰ 🍜 ˊˎ Toriko ꒱", "꒰꒰ ✨ ˊˎ Magi ꒱", "꒰꒰ 🧭 ˊˎ Vinland Saga ꒱", "꒰꒰ 🔮 ˊˎ The Apothecary Diaries ꒱",
+    "꒰꒰ 🏴 ˊˎ Black Lagoon ꒱", "꒰꒰ 🥁 ˊˎ Given ꒱", "꒰꒰ 🌤️ ˊˎ Barakamon ꒱", "꒰꒰ 🦊 ˊˎ Spice and Wolf ꒱",
+    "꒰꒰ 🌟 ˊˎ Love Live ꒱", "꒰꒰ 🐧 ˊˎ Mawaru Penguindrum ꒱", "꒰꒰ 🍥 ˊˎ Blue Exorcist ꒱", "꒰꒰ 💐 ˊˎ Fruits Basket ꒱",
+    "꒰꒰ 🪼 ˊˎ Jellyfish Can't Swim in the Night ꒱", "꒰꒰ 🎬 ˊˎ Millennium Actress ꒱", "꒰꒰ 🐦 ˊˎ Charlotte ꒱", "꒰꒰ 🕹️ ˊˎ The World God Only Knows ꒱",
+    "꒰꒰ 🌹 ˊˎ Revolutionary Girl Utena ꒱", "꒰꒰ 🌱 ˊˎ Mushishi ꒱", "꒰꒰ 🍁 ˊˎ Dororo ꒱", "꒰꒰ 🩶 ˊˎ Parasyte ꒱",
+]
+
 
 class RenkSec(discord.ui.Select):
     def __init__(self, guild_id: int, rol_idleri: list[int]):
@@ -4226,13 +4256,17 @@ async def anime_rollari_kur(ctx, referans_rol: discord.Role = None):
                 return
         toplam_roller.append(rol)
 
-    hedef_pozisyon = max(1, referans_rol.position - 1)
-    for rol in toplam_roller:
-        try:
-            await rol.edit(position=hedef_pozisyon, reason=f"{ctx.author} tarafindan anime rol dizilimi ayarlandi")
-        except discord.Forbidden:
-            await ctx.send(embed=hata_embedi("Rol Siralama Hatasi", "Anime rolleri olustu ama bot bunlari secilen rolun altina tasiyamadi."))
-            return
+    if referans_rol.position <= len([rol for rol in toplam_roller if rol]):
+        await ctx.send(embed=hata_embedi("Rol Siralama Hatasi", "Sectigin rol cok asagida. Anime rollerini hemen altina dizmek icin daha yuksek bir referans rol sec."))
+        return
+
+    try:
+        roller_sirali = sorted([rol for rol in toplam_roller if rol], key=lambda r: r.position, reverse=True)
+        konumlar = {rol: referans_rol.position - 1 - index for index, rol in enumerate(roller_sirali)}
+        await ctx.guild.edit_role_positions(positions=konumlar)
+    except discord.Forbidden:
+        await ctx.send(embed=hata_embedi("Rol Siralama Hatasi", "Anime rolleri olustu ama bot bunlari sectigin rolun hemen altina tasiyamadi."))
+        return
 
     anime_rollari_kaydet(ctx.guild.id, [rol.id for rol in toplam_roller if rol])
     embed = discord.Embed(
@@ -4247,6 +4281,28 @@ async def anime_rollari_kur(ctx, referans_rol: discord.Role = None):
     embed.add_field(name="Ornekler", value="\n".join(rol.name for rol in toplam_roller[:6]) if toplam_roller else "-", inline=False)
     embed.set_footer(text="Secim menusu icin `.animerolpanel` kullan.")
     await ctx.send(embed=embed)
+
+
+@bot.command(name="animerollerikaldir", aliases=["anime-rolleri-kaldir"])
+@commands.has_permissions(manage_roles=True)
+async def anime_rollari_kaldir(ctx):
+    roller = [ctx.guild.get_role(rol_id) for rol_id in anime_rollari_al(ctx.guild.id)]
+    roller = [rol for rol in roller if rol]
+    silinen = 0
+    for rol in roller:
+        try:
+            await rol.delete(reason=f"{ctx.author} tarafindan anime rol paketi kaldirildi")
+            silinen += 1
+        except discord.Forbidden:
+            await ctx.send(embed=hata_embedi("Rol Silme Hatasi", "Bazi anime rollerini silmeye yetkim yetmedi."))
+            return
+    anime_rollari_kaydet(ctx.guild.id, [])
+    await ctx.send(embed=discord.Embed(
+        title="Anime Rolleri Kaldirildi",
+        description=f"Toplam **{silinen}** anime rolu sunucudan silindi.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    ))
 
 
 @bot.command(name="animerolpanel", aliases=["anime-rol-panel"])
