@@ -4443,8 +4443,11 @@ async def anime_rol_panel_v2(ctx):
             if not secilen_roller:
                 await interaction.response.send_message("Gecerli bir anime rolu secilmedi.", ephemeral=True)
                 return
-            await interaction.user.add_roles(*secilen_roller, reason="Anime rol paneli secimi")
-            await interaction.response.send_message(
+            await interaction.response.defer(ephemeral=True)
+            for index in range(0, len(secilen_roller), 5):
+                parcali = secilen_roller[index:index + 5]
+                await interaction.user.add_roles(*parcali, reason="Anime rol paneli secimi")
+            await interaction.followup.send(
                 f"Anime rollerin eklendi: {', '.join(rol.mention for rol in secilen_roller[:10])}",
                 ephemeral=True
             )
@@ -4468,10 +4471,13 @@ async def anime_rol_panel_v2(ctx):
 
         @discord.ui.button(label="Tum Anime Rollerini Temizle", style=discord.ButtonStyle.danger)
         async def temizle(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer(ephemeral=True)
             mevcut_anime_rolleri = [rol for rol in roller if rol in interaction.user.roles]
             if mevcut_anime_rolleri:
-                await interaction.user.remove_roles(*mevcut_anime_rolleri, reason="Anime rol paneli temizleme")
-            await interaction.response.send_message("Uzerindeki tum anime rolleri temizlendi.", ephemeral=True)
+                for index in range(0, len(mevcut_anime_rolleri), 5):
+                    parcali = mevcut_anime_rolleri[index:index + 5]
+                    await interaction.user.remove_roles(*parcali, reason="Anime rol paneli temizleme")
+            await interaction.followup.send("Uzerindeki tum anime rolleri temizlendi.", ephemeral=True)
 
     await ctx.send(embed=anime_panel_embedi(0), view=AnimeRolViewV2(0))
 
