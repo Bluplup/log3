@@ -2873,22 +2873,17 @@ async def gelismis_yardim_v3(ctx):
     await ctx.send(embed=ana_embed(), view=HelpView())
 
 
-@bot.command(name="yardım")
-async def yardim(ctx):
+async def _legacy_yardim(ctx):
     if not hasattr(bot, "_help_seen_message_ids"):
         bot._help_seen_message_ids = set()
     if ctx.message.id in bot._help_seen_message_ids:
         return
     bot._help_seen_message_ids.add(ctx.message.id)
     await gelismis_yardim_v3(ctx)
-    return
 
-    def ana_embed():
-        e = discord.Embed(title="📖 Komut Rehberi", description="Bir kategoriye tıkla.", color=0x5865F2, timestamp=datetime.now(timezone.utc))
-        e.add_field(name="Kategoriler", value="🛡️ Moderasyon\n🤝 Partner\n🎉 Eğlence\n🔧 Araçlar", inline=False)
-        e.set_footer(text=f"{ctx.guild.name} • {zaman_damgasi()}")
-        if ctx.guild.icon: e.set_thumbnail(url=ctx.guild.icon.url)
-        return e
+# ─────────────────────────────────────────
+#  BOTU BAŞLAT
+# ─────────────────────────────────────────
 
     def mod_embed():
         e = discord.Embed(title="🛡️ Moderasyon", color=0xE74C3C, timestamp=datetime.now(timezone.utc))
@@ -3078,101 +3073,9 @@ for _eski in ("yardim", "help", "yardÄ±m"):
         pass
 
 
-@bot.command(name="yardim", aliases=["help"])
-async def yeni_yardim(ctx):
-    komutlar = _yardim_komutlarini_topla()
-    sistem_haritasi = _yardim_sistem_haritasi()
-
-    def temel_embed(baslik: str, aciklama: str) -> discord.Embed:
-        embed = discord.Embed(title=baslik, description=aciklama, color=0x1F2335, timestamp=datetime.now(timezone.utc))
-        if ctx.guild.icon:
-            embed.set_thumbnail(url=ctx.guild.icon.url)
-            embed.set_author(name=f"{ctx.guild.name} Komutlar", icon_url=ctx.guild.icon.url)
-        else:
-            embed.set_author(name=f"{ctx.guild.name} Komutlar")
-        embed.set_footer(text=f"Toplam {sum(len(v) for v in komutlar.values())} komut • {zaman_damgasi()}")
-        return embed
-
-    def ana_embed():
-        embed = temel_embed("Komut Menusu", "Kategori ve sistem secicilerinden istedigin bolume gecebilirsin.")
-        kategori_ozet = [f"`{kategori}` ({len(kayitlar)})" for kategori, kayitlar in komutlar.items() if kayitlar]
-        embed.add_field(name="Kategoriler", value="\n".join(kategori_ozet[:8]) or "-", inline=True)
-        sistem_ozet = []
-        for sistem, adlar in sistem_haritasi.items():
-            sayi = sum(1 for liste in komutlar.values() for kayit in liste if kayit["ad"] in adlar)
-            sistem_ozet.append(f"`{sistem}` ({sayi})")
-        embed.add_field(name="Sistemler", value="\n".join(sistem_ozet[:9]) or "-", inline=True)
-        embed.add_field(name="Hizli Baslangic", value="`.profil`\n`.ticketpanel`\n`.levelkur`\n`.hosgeldinkur`\n`.uygulamakomutkapat`", inline=False)
-        return embed
-
-    def kategori_embed(kategori: str):
-        kayitlar = komutlar.get(kategori, [])
-        embed = temel_embed(f"{kategori} Komutlari", f"Bu kategorideki tum komutlar listeleniyor.")
-        for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(kayitlar))[:6]):
-            embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
-        return embed
-
-    def sistem_embed(sistem: str):
-        adlar = sistem_haritasi.get(sistem, set())
-        kayitlar = []
-        for liste in komutlar.values():
-            kayitlar.extend([kayit for kayit in liste if kayit["ad"] in adlar])
-        kayitlar.sort(key=lambda x: x["gosterim"])
-        embed = temel_embed(f"{sistem} Sistemi", f"{sistem} ile ilgili tum komutlar burada.")
-        for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(kayitlar))[:6]):
-            embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
-        return embed
-
-    class KategoriSec(discord.ui.Select):
-        def __init__(self):
-            secenekler = [discord.SelectOption(label=kategori, value=kategori, description=f"{len(kayitlar)} komut") for kategori, kayitlar in komutlar.items() if kayitlar]
-            super().__init__(placeholder="Kategoriler", min_values=1, max_values=1, options=secenekler)
-
-        async def callback(self, interaction: discord.Interaction):
-            await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
-
-    class SistemSec(discord.ui.Select):
-        def __init__(self):
-            secenekler = [discord.SelectOption(label=sistem, value=sistem, description="Sistem komutlarini gosterir") for sistem in sistem_haritasi]
-            super().__init__(placeholder="Sistemler", min_values=1, max_values=1, options=secenekler)
-
-        async def callback(self, interaction: discord.Interaction):
-            await interaction.response.edit_message(embed=sistem_embed(self.values[0]), view=view)
-
-    class MenuSec(discord.ui.Select):
-        def __init__(self):
-            secenekler = [
-                discord.SelectOption(label="Ana Menu", value="ana", description="Ozet ekrana don"),
-                discord.SelectOption(label="Tum Komutlar", value="tum", description="Tum aktif komutlari tek listede goster"),
-            ]
-            super().__init__(placeholder="Yardim Menusu", min_values=1, max_values=1, options=secenekler)
-
-        async def callback(self, interaction: discord.Interaction):
-            if self.values[0] == "ana":
-                await interaction.response.edit_message(embed=ana_embed(), view=view)
-                return
-            tum = []
-            for kategori in ["Ayarlar", "Moderasyon", "Roller", "Sistemler", "Kullanici", "Eglence", "Slash", "Diger"]:
-                tum.extend(komutlar.get(kategori, []))
-            tum.sort(key=lambda x: x["gosterim"])
-            embed = temel_embed("Tum Komutlar", "Koddaki tum aktif komutlar burada listeleniyor.")
-            for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(tum), limit=850)[:8]):
-                embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
-            await interaction.response.edit_message(embed=embed, view=view)
-
-    class HelpView(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=None)
-            self.add_item(KategoriSec())
-            self.add_item(SistemSec())
-            self.add_item(MenuSec())
-
-        @discord.ui.button(label="Ana Menu", style=discord.ButtonStyle.secondary, row=3)
-        async def ana(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.edit_message(embed=ana_embed(), view=self)
-
-    view = HelpView()
-    await ctx.send(embed=ana_embed(), view=view)
+@bot.command(name="yardim", aliases=["yardım", "help"])
+async def yardim(ctx):
+    await gelismis_yardim_v3(ctx)
 
 # ── AFK yardımcı fonksiyonlar ────────────────────────────────────
 
