@@ -3122,7 +3122,7 @@ def antilink_kaydet(guild_id: int, veri: dict):
 # ─────────────────────────────────────────
 
 import re
-DAVET_REGEX = re.compile(r"(?:https?://)?(?:discord|discordapp)\.(?:gg|com)/(?:invite/)?([a-zA-Z0-9_-]+)")
+DAVET_REGEX = re.compile(r"(?:https?://)?(?:discord\.(?:gg|com)|discordapp\.com)/(?:invite/)?([a-zA-Z0-9_-]+)")
 @bot.event
 async def on_message(message: discord.Message):
     """
@@ -5893,7 +5893,128 @@ async def on_message(message):
     ayarlar = ayarlari_yukle()
     gk = str(message.guild.id)
     sunucu_ayari = ayarlar.get(gk, {})
-    
+
+    # Partner kanalı kontrolü
+    partner_ch_id = partner_kanal_id_al(message.guild.id)
+    if partner_ch_id and message.channel.id == partner_ch_id:
+        eslesen = DAVET_REGEX.search(message.content)
+
+        if not eslesen:
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                pass
+            uyari = await message.channel.send(embed=discord.Embed(
+                title="❌ Geçersiz Partner Metni",
+                description=f"{message.author.mention} Mesajınızda Discord davet linki bulunamadı. Mesajınız silindi.",
+                color=RENKLER["hata"]
+            ))
+            await asyncio.sleep(5)
+            try:
+                await uyari.delete()
+            except discord.NotFound:
+                pass
+            return
+
+        # Davet kodu al
+        davet_kodu = eslesen.group(1)
+        partners = partner_verisi_al(message.guild.id)
+        simdi = datetime.now(timezone.utc)
+
+        # 1 saat bekleme kontrolü
+        if davet_kodu in partners:
+            son_zaman_str = partners[davet_kodu].get("son_partner")
+            if son_zaman_str:
+                son_zaman = utc_datetime_from_iso(son_zaman_str)
+                gecen = (simdi - son_zaman).total_seconds()
+                if gecen < PARTNER_BEKLEME_SURESI:
+                    kalan = int(PARTNER_BEKLEME_SURESI - gecen)
+                    onceki_id = partners[davet_kodu].get("yapan_id")
+                    try:
+                        await message.delete()
+                    except discord.Forbidden:
+                        pass
+                    uyari = await message.channel.send(embed=discord.Embed(
+                        title="⏳ Bekleme Süresi Dolmadı",
+                        description=(
+                            f"{message.author.mention} Bu sunucuyla tekrar partner yapmak için\n"
+                            f"**{kalan // 60} dakika {kalan % 60} saniye** beklemeniz gerekiyor.\n"
+                            f"Son partner: <@{onceki_id}> tarafından yapıldı."
+                        ),
+                        color=RENKLER["mute"]
+                    ))
+                    await asyncio.sleep(7)
+                    try:
+                        await uyari.delete()
+                    except discord.NotFound:
+                        pass
+                    return
+
+        # Kaydet
+        ilk_satir = message.content.strip().split("\n")[0][:50]
+        sunucu_adi = ilk_satir if ilk_satir else "Bilinmiyor"
+        kayit = {
+            "guild_name": sunucu_adi,
+            "guild_id": davet_kodu,
+            "yapan": str(message.author),
+            "yapan_id": message.author.id,
+            "zaman": simdi.isoformat(),
+            "son_partner": simdi.isoformat()
+        }
+        partner_kaydet_db(message.guild.id, davet_kodu, kayit)
+        partner_gecmisi_ekle(message.guild.id, {
+            "guild_name": sunucu_adi,
+            "guild_id": davet_kodu,
+            "yapan": str(message.author),
+            "yapan_id": message.author.id,
+            "zaman": simdi.isoformat(),
+        })
+
+        yetkili_partner_sayisi_guncelle(message.guild.id, message.author.id, str(message.author))
+
+        stats = partner_istatistik_hesapla(message.guild.id)
+        sira = partner_sira_bul(message.guild.id)
+        yetkili_liste = yetkili_siralamasi_al(message.guild.id)
+        yetkili_sira = next((i+1 for i, y in enumerate(yetkili_liste) if y["id"] == str(message.author.id)), "?")
+        yetkili_toplam = next((y["sayi"] for y in yetkili_liste if y["id"] == str(message.author.id)), 1)
+
+        stats_embed = discord.Embed(
+            title="🤝 Yeni Partner Yapıldı!",
+            description=f"{message.author.mention} yeni bir partnerlik yaptı!",
+            color=0x57F287,
+            timestamp=simdi
+        )
+        stats_embed.add_field(name="📊 Sunucu Sırası", value=f"**#{sira}**", inline=True)
+        stats_embed.add_field(name="👤 Yetkili Sırası", value=f"**#{yetkili_sira}** ({yetkili_toplam} partnerlik)", inline=True)
+        stats_embed.add_field(
+            name="🕐 Zamana Dayalı:",
+            value=(
+                f"› Günlük: **{stats['gunluk']}**\n"
+                f"› Haftalık: **{stats['haftalik']}**\n"
+                f"› Aylık: **{stats['aylik']}**"
+            ),
+            inline=True
+        )
+        stats_embed.add_field(name="• Toplam", value=f"**{stats['toplam']}**", inline=True)
+        stats_embed.set_footer(text=f"{bot.user.name} • Partner Sistemi")
+        if message.guild.icon:
+            stats_embed.set_thumbnail(url=message.guild.icon.url)
+        await message.channel.send(embed=stats_embed)
+
+        log_kanal_id = partner_log_kanali_al(message.guild.id)
+        if log_kanal_id:
+            log_kanal = message.guild.get_channel(log_kanal_id)
+            if log_kanal:
+                log_embed = discord.Embed(title="📋 Partner Logu", color=0x57F287, timestamp=simdi)
+                log_embed.add_field(name="🔗 Davet", value=f"`{davet_kodu}`", inline=True)
+                log_embed.add_field(name="👤 Yapan", value=message.author.mention, inline=True)
+                log_embed.add_field(name="📅 Zaman", value=simdi.strftime("%d.%m.%Y %H:%M UTC"), inline=True)
+                log_embed.add_field(name="📊 Toplam", value=str(stats["toplam"]), inline=True)
+                log_embed.add_field(name="👤 Yetkili Toplamı", value=str(yetkili_toplam), inline=True)
+                log_embed.set_footer(text=zaman_damgasi())
+                await log_kanal.send(embed=log_embed)
+        return
+
     # Genel spam koruması
     spam_ayar = sunucu_ayari.get("guvenlik_spam_koruma", {})
     if spam_ayar.get("aktif", False):
