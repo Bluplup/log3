@@ -3122,8 +3122,7 @@ def antilink_kaydet(guild_id: int, veri: dict):
 # ─────────────────────────────────────────
 
 import re
-DAVET_REGEX = re.compile(r"(?:https?://)?discord(?:\.gg|app\.com/invite|\.com/invite)/[a-zA-Z0-9_-]+")
-
+DAVET_REGEX = re.compile(r"(?:https?://)?(?:discord|discordapp)\.(?:gg|com)/(?:invite/)?([a-zA-Z0-9_-]+)")
 @bot.event
 async def on_message(message: discord.Message):
     """
@@ -3157,7 +3156,7 @@ async def on_message(message: discord.Message):
                 return
 
             # Davet kodu al
-            davet_kodu = eslesen.group(0).split("/")[-1]
+            davet_kodu = eslesen.group(1)
             partners = partner_verisi_al(message.guild.id)
             simdi = datetime.now(timezone.utc)
 
