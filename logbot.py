@@ -1044,11 +1044,183 @@ async def log_sifirla(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=OnayView(), ephemeral=True)
 
 
+# ─────────────────────────────────────────
+#  KÜFÜR KORUMASI
+# ─────────────────────────────────────────
+
+class KufurKorumasıModal(discord.ui.Modal, title="Küfür Koruması Ayarları"):
+    """Yasak kelimeleri yapılandırmak için modal."""
+    
+    yasakli_kelimeler = discord.ui.TextInput(
+        label="Yasak Kelimeler (virgül ile ayırınız)",
+        placeholder="örnek: kelime1, kelime2, kelime3",
+        required=True,
+        style=discord.TextStyle.long,
+        max_length=2000
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        # Kelimeleri temizle ve kaydet
+        metin = str(self.yasakli_kelimeler).strip()
+        if not metin:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="❌ Hata",
+                    description="Lütfen en az bir kelime girin.",
+                    color=RENKLER["hata"]
+                ),
+                ephemeral=True
+            )
+            return
+        
+        # Kelimeleri virgül ile ayır ve temizle
+        kelimeler = [k.strip().lower() for k in metin.split(",") if k.strip()]
+        
+        if not kelimeler:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="❌ Hata",
+                    description="Lütfen geçerli kelimeler girin.",
+                    color=RENKLER["hata"]
+                ),
+                ephemeral=True
+            )
+            return
+        
+        # Ayarlara kaydet
+        kufur_kelimelerini_kaydet(interaction.guild_id, kelimeler)
+        
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="✅ Küfür Koruması Ayarlandı",
+                description=f"**{len(kelimeler)}** yasak kelime kaydedildi.",
+                color=RENKLER["basari"],
+                timestamp=datetime.now(timezone.utc)
+            ),
+            ephemeral=True
+        )
+
+
+def kufur_kelimelerini_kaydet(guild_id: int, kelimeler: list[str]):
+    """Yasak kelimeleri ayarlara kaydeder."""
+    with _ayar_dosya_kilidi:
+        ayarlar = ayarlari_yukle()
+        guild_key = str(guild_id)
+        if guild_key not in ayarlar:
+            ayarlar[guild_key] = {}
+        ayarlar[guild_key]["yasakli_kelimeler"] = kelimeler
+        ayarlari_kaydet(ayarlar)
+
+
+def kufur_kelimelerini_al(guild_id: int) -> list[str]:
+    """Sunucuya ait yasak kelimeleri döndürür."""
+    ayarlar = ayarlari_yukle()
+    return ayarlar.get(str(guild_id), {}).get("yasakli_kelimeler", [])
+
+
+def mesajda_yasakli_kelime_var_mi(mesaj: str, yasakli_kelimeler: list[str]) -> bool:
+    """
+    Mesajda yasak kelime olup olmadığını kontrol eder.
+    Kısmi eşleşmeleri de bulur (örnek: 'test' yazarken 'testt' de bulur).
+    """
+    if not yasakli_kelimeler:
+        return False
+    
+    mesaj_temiz = mesaj.lower()
+    for kelime in yasakli_kelimeler:
+        if kelime in mesaj_temiz:
+            return True
+    return False
+
+
+@bot.tree.command(name="kufur-kur", description="Küfür koruması ayarı yapar")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def kufur_kur(interaction: discord.Interaction):
+    """
+    Modal açarak küfür koruması için yasak kelimeleri yapılandırır.
+    Kelimeleri virgül ile ayırarak girin.
+    """
+    await interaction.response.send_modal(KufurKorumasıModal())
+
+
+@bot.tree.command(name="kufur-durum", description="Küfür koruması ayarlarını gösterir")
+@app_commands.checks.has_permissions(manage_guild=True)
+async def kufur_durum(interaction: discord.Interaction):
+    """Şu anda tanımlı olan yasak kelimeleri ve sayılarını gösterir."""
+    kelimeler = kufur_kelimelerini_al(interaction.guild_id)
+    
+    if not kelimeler:
+        embed = discord.Embed(
+            title="ℹ️ Küfür Koruması",
+            description="Bu sunucuda henüz yasak kelime tanımlanmamış.\n`/kufur-kur` komutu ile ayarla!",
+            color=RENKLER["bilgi"]
+        )
+    else:
+        # Kelimeleri gruplara ayır (Discord mesaj limiti için)
+        kelimeler_str = ", ".join(kelimeler[:50])  # İlk 50 göster
+        if len(kelimeler) > 50:
+            kelimeler_str += f", ... ve {len(kelimeler) - 50} kelime daha"
+        
+        embed = discord.Embed(
+            title="🛡️ Küfür Koruması Aktif",
+            description=f"**Toplam Yasak Kelime:** {len(kelimeler)}",
+            color=RENKLER["basari"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(
+            name="📋 Yasak Kelimeler",
+            value=f"```\n{kelimeler_str}\n```",
+            inline=False
+        )
+    
+    embed.set_footer(text=zaman_damgasi())
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(name="kufur-temizle", description="Tüm yasak kelimeleri siler")
+@app_commands.checks.has_permissions(administrator=True)
+async def kufur_temizle(interaction: discord.Interaction):
+    """Tüm yasak kelimeleri siler ve küfür korumasını kapatır."""
+    
+    class KufurTemizleView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=30)
+
+        @discord.ui.button(label="Evet, Sil", style=discord.ButtonStyle.danger, emoji="⚠️")
+        async def onayla(self, btn_i: discord.Interaction, button: discord.ui.Button):
+            kufur_kelimelerini_kaydet(btn_i.guild_id, [])
+            embed = discord.Embed(
+                title="🗑️ Yasak Kelimeler Silindi",
+                description="Tüm yasak kelimeleri kaldırıldı, küfür koruması kapatıldı.",
+                color=RENKLER["basari"]
+            )
+            await btn_i.response.edit_message(embed=embed, view=None)
+
+        @discord.ui.button(label="İptal", style=discord.ButtonStyle.secondary, emoji="✖️")
+        async def iptal(self, btn_i: discord.Interaction, button: discord.ui.Button):
+            embed = discord.Embed(
+                title="✅ İptal Edildi",
+                description="Silme işlemi iptal edildi.",
+                color=RENKLER["bilgi"]
+            )
+            await btn_i.response.edit_message(embed=embed, view=None)
+
+    embed = discord.Embed(
+        title="⚠️ Emin misiniz?",
+        description="Bu işlem tüm yasak kelimeleri **kalıcı olarak** silecek!\nGeri alınamaz.",
+        color=RENKLER["hata"]
+    )
+    await interaction.response.send_message(embed=embed, view=KufurTemizleView(), ephemeral=True)
+
+
 # Yetki hataları için ortak yakalayıcı
 @log_kur.error
 @log_kaldir.error
 @log_durum.error
 @log_sifirla.error
+@kufur_kur.error
+@kufur_durum.error
+@kufur_temizle.error
 async def komut_hata(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
         embed = discord.Embed(
@@ -3308,6 +3480,25 @@ async def on_message(message: discord.Message):
                     except discord.NotFound:
                         pass
                     return
+
+        # ── Küfür Koruması kontolü ──────────────────────────
+        yasakli_kelimeler = kufur_kelimelerini_al(message.guild.id)
+        if yasakli_kelimeler and mesajda_yasakli_kelime_var_mi(message.content, yasakli_kelimeler):
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                pass
+            uyari = await message.channel.send(embed=discord.Embed(
+                title="🛡️ Küfür Algılandı",
+                description=f"{message.author.mention} Mesajınızda yasak kelime bulunduğu için silinmiştir.",
+                color=RENKLER["hata"]
+            ))
+            await asyncio.sleep(5)
+            try:
+                await uyari.delete()
+            except discord.NotFound:
+                pass
+            return
 
     await _prefix_komutlari_isle(message)
 
