@@ -6140,15 +6140,6 @@ async def spam_koruma_kur(ctx):
     """Genel spam korumasını modal ile kurar."""
     await ctx.send("Modal açmak için butona tıklayın:", view=SpamModalView())
 
-class SpamModalView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=60)
-    
-    @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary)
-    async def callback(self, interaction: discord.Interaction):
-        modal = SpamModal()
-        await interaction.response.send_modal(modal)
-
 @bot.command(name="link-koruma-kur")
 @commands.has_permissions(manage_guild=True)
 async def link_koruma_kur(ctx):
