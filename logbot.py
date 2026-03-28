@@ -1117,6 +1117,18 @@ def kufur_kelimelerini_al(guild_id: int) -> list[str]:
     ayarlar = ayarlari_yukle()
     return ayarlar.get(str(guild_id), {}).get("yasakli_kelimeler", [])
 
+def kufur_kontrol(guild_id: int, mesaj: str) -> bool:
+    """Mesajda yasaklı kelime var mı kontrol eder."""
+    yasakli_kelimeler = kufur_kelimelerini_al(guild_id)
+    if not yasakli_kelimeler:
+        return False
+    
+    mesaj_temiz = mesaj.lower()
+    for kelime in yasakli_kelimeler:
+        if kelime in mesaj_temiz:
+            return True
+    return False
+
 
 def mesajda_yasakli_kelime_var_mi(mesaj: str, yasakli_kelimeler: list[str]) -> bool:
     """
