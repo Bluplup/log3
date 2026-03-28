@@ -2827,7 +2827,7 @@ async def gelismis_yardim_v3(ctx):
         e = embed_taban("Partner Sistemi", "Partner kaydi, takip ve siralama komutlari.", 0x57F287)
         e.add_field(name="Kurulum", value="`.partner-kur #text #log`", inline=False)
         e.add_field(name="Takip ve Rapor", value="`.partner-istatistik`\n`.partner-top`\n`.partner-liste`\n`.partner-kapat`\n`.partner-sifirla`", inline=False)
-        e.add_field(name="Calisma Mantigi", value="Partner kanalina gecerli davet linki atilir.\nBot kaydi tutar ve ayni sunucu icin 1 saat bekleme uygular.", inline=False)
+        e.add_field(name="Calisma Mantigi", value="Partner kanalina gecerli davet linki atilir.\nBot kaydi tutar ve ayni sunucu icin 1 saat bekleme uygular.\nEveryone/here otomatik silinir.", inline=False)
         return e
 
     def eglence_embed():
@@ -2843,6 +2843,7 @@ async def gelismis_yardim_v3(ctx):
         e.add_field(name="Log", value="`.logkur`\n`.logkurkanal`\n`/log-kur` • `/log-kaldir`\n`/log-durum` • `/log-sifirla`", inline=False)
         e.add_field(name="Level", value="`.levelkur`\n`.levelrol <seviye> @rol`\n`.levelrolsil <seviye>`\n`.levelrolleri`\n`.levelmesajtest [@uye]`\n`.leveldurum` • `.seviye [@uye]`", inline=False)
         e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
+        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Spam koruması ayarları\n`.spam-koruma-ayar <max> <zaman> <sure> <rol>` ┗ Spam ayarla\n`.link-koruma-kur` ┗ Link koruması ayarları\n`.link-koruma-aktif/.link-koruma-kapat` ┗ Link koruması\n`.link-koruma-muaf-rol @rol` ┗ Muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
         e.add_field(name="Diger Sistemler", value="`.antilink`\n`.antilink ac`\n`.antilink kapat`\n`.antilink muaf @rol/#kanal`\n`.renkekle @rol` • `.renkcikar @rol`\n`.renklist` • `.renkpanel`\n`.guvenlikkur` • `.guvenlikdurum`\n`.guvenlikizin @uye/@rol` • `.guvenlikizinsil @uye/@rol`", inline=False)
         return e
 
@@ -2895,7 +2896,7 @@ async def _legacy_yardim(ctx):
     def partner_embed():
         e = discord.Embed(title="🤝 Partner Sistemi", color=0x57F287, timestamp=datetime.now(timezone.utc))
         e.add_field(name="Komutlar", value="`.partner-kur #text #log` ┗ Kanalları ayarlar\n`.partner-istatistik` ┗ İstatistikler\n`.partner-top` ┗ 🥇🥈🥉 Sıralama\n`.partner-liste` ┗ Sunucu listesi\n`.partner-sifirla` ┗ Sıfırlar", inline=False)
-        e.add_field(name="Nasıl çalışır?", value="Yetkili kanala partner textini atar\nBot davet linkini kontrol eder\nLink yoksa siler · Var ise kaydeder\nAynı sunucu ile 1 saat bekleme var", inline=False)
+        e.add_field(name="Nasıl çalışır?", value="Yetkili kanala partner textini atar\nBot davet linkini kontrol eder\nLink yoksa siler · Var ise kaydeder\nAynı sunucu ile 1 saat bekleme var\nEveryone/here otomatik silinir", inline=False)
         return e
 
     def eglence_embed():
@@ -2912,6 +2913,7 @@ async def _legacy_yardim(ctx):
         e.add_field(name="Log Sistemi", value="`.logkur` · `.logkurkanal`\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
         e.add_field(name="Level Sistemi", value="`.levelkur` · `.levelrol` · `.levelrolsil` · `.levelrolleri`\n`.levelmesajtest` · `.leveldurum` · `.seviye`", inline=False)
         e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkur` · `.hosgeldindurum` · `.hosgeldinmesajtest`", inline=False)
+        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Spam koruması ayarları\n`.spam-koruma-ayar <max> <zaman> <sure> <rol>` ┗ Spam ayarla\n`.link-koruma-kur` ┗ Link koruması ayarları\n`.link-koruma-aktif/.link-koruma-kapat` ┗ Link koruması\n`.link-koruma-muaf-rol @rol` ┗ Muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -5867,6 +5869,377 @@ async def karsilama_test(ctx, uye: discord.Member = None):
         return
 
     await ctx.send(f"Karşılama test mesajı {kanal.mention} kanalına gönderildi.", delete_after=8)
+
+
+# ── Partner Koruma Sistemleri ─────────────────────────────────────
+
+# Everyone/Here koruması için veri deposu
+_everyone_here_log = {}
+
+@bot.event
+async def on_message(message):
+    # Bot mesajlarını ignore et
+    if message.author.bot:
+        return
+    
+    # Mevcut event handler'ları çalıştır
+    try:
+        await bot.process_commands(message)
+    except:
+        pass
+    
+    # Genel güvenlik sistemleri
+    ayarlar = ayarlari_yukle()
+    gk = str(message.guild.id)
+    sunucu_ayari = ayarlar.get(gk, {})
+    
+    # Genel spam koruması
+    spam_ayar = sunucu_ayari.get("guvenlik_spam_koruma", {})
+    if spam_ayar.get("aktif", False):
+        user_id = message.author.id
+        now = time.time()
+        
+        # Kullanıcının mesaj geçmişini kontrol et
+        if user_id not in _everyone_here_log:
+            _everyone_here_log[user_id] = []
+        
+        _everyone_here_log[user_id].append(now)
+        
+        # Eski mesajları temizle (1 saatten eski olanlar)
+        _everyone_here_log[user_id] = [t for t in _everyone_here_log[user_id] if now - t < 3600]
+        
+        # Spam kontrolü
+        max_mesaj = spam_ayar.get("max_mesaj", 5)
+        zaman_araligi = spam_ayar.get("zaman_araligi", 10)
+        
+        son_mesajlar = [t for t in _everyone_here_log[user_id] if now - t < zaman_araligi]
+        
+        if len(son_mesajlar) > max_mesaj:
+            try:
+                # Mute uygula
+                mute_suresi = spam_ayar.get("mute_suresi", 300)  # 5 dakika
+                mute_rol_id = spam_ayar.get("mute_rol")
+                
+                if mute_rol_id:
+                    mute_rol = message.guild.get_role(mute_rol_id)
+                    if mute_rol:
+                        await message.author.add_roles(mute_rol, reason="Spam koruması - Genel güvenlik")
+                        
+                        # Bildirim gönder
+                        await message.channel.send(
+                            f"🔇 {message.author.mention} spam yaptığı için {mute_suresi//60} dakika susturuldu!",
+                            delete_after=10
+                        )
+                        
+                        # Log gönder
+                        log_kanal_id = sunucu_ayari.get("guvenlik_log")
+                        if log_kanal_id:
+                            log_kanal = message.guild.get_channel(log_kanal_id)
+                            if log_kanal:
+                                embed = discord.Embed(
+                                    title="🔇 Spam Cezası",
+                                    description=f"{message.author.mention} spam yaptığı için susturuldu.",
+                                    color=0xFF9500,
+                                    timestamp=datetime.now(timezone.utc)
+                                )
+                                embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                                embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
+                                embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede {len(son_mesajlar)} mesaj", inline=False)
+                                await log_kanal.send(embed=embed)
+                        
+                        # Otomatik unmut
+                        await asyncio.sleep(mute_suresi)
+                        try:
+                            await message.author.remove_roles(mute_rol, reason="Spam koruması - Süre doldu")
+                        except:
+                            pass
+            except discord.Forbidden:
+                pass
+    
+    # Genel link koruması
+    link_ayar = sunucu_ayari.get("guvenlik_link_koruma", {})
+    if link_ayar.get("aktif", False):
+        # Muaf kontrolü
+        muaf_roller = link_ayar.get("muaf_roller", [])
+        muaf_kanallar = link_ayar.get("muaf_kanallar", [])
+        
+        # Kullanıcı muaf mı?
+        kullanici_muaf = any(role.id in muaf_roller for role in message.author.roles)
+        
+        # Kanal muaf mı?
+        kanal_muaf = message.channel.id in muaf_kanallar
+        
+        if not kullanici_muaf and not kanal_muaf:
+            # Link kontrolü (basit regex)
+            import re
+            link_pattern = r'https?://[^\s<>"]+|www\.[^\s<>"]+'
+            if re.search(link_pattern, message.content):
+                try:
+                    await message.delete()
+                    await message.channel.send(
+                        f"🚫 {message.author.mention} Link paylaşımı yasaktır!",
+                        delete_after=5
+                    )
+                    
+                    # Log gönder
+                    log_kanal_id = sunucu_ayari.get("guvenlik_log")
+                    if log_kanal_id:
+                        log_kanal = message.guild.get_channel(log_kanal_id)
+                        if log_kanal:
+                            embed = discord.Embed(
+                                title="🚫 Link Paylaşımı",
+                                description=f"{message.author.mention} kullanıcısı link paylaştı.",
+                                color=0xFF6B6B,
+                                timestamp=datetime.now(timezone.utc)
+                            )
+                            embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                            embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
+                            embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                            await log_kanal.send(embed=embed)
+                except discord.Forbidden:
+                    pass
+    
+    # Partner kanalı everyone/here koruması (sadece partner için)
+    partner_kanal_id = sunucu_ayari.get("partner_kanal")
+    
+    if partner_kanal_id and message.channel.id == partner_kanal_id:
+        # Everyone/Here kontrolü
+        if "@everyone" in message.content or "@here" in message.content:
+            try:
+                await message.delete()
+                await message.channel.send(
+                    f"⚠️ {message.author.mention} Partner kanalında everyone/here kullanımı yasaktır!",
+                    delete_after=5
+                )
+                # Log kaydı
+                log_kanal_id = sunucu_ayari.get("partner_log")
+                if log_kanal_id:
+                    log_kanal = message.guild.get_channel(log_kanal_id)
+                    if log_kanal:
+                        embed = discord.Embed(
+                            title="🚫 Everyone/Here Kullanımı",
+                            description=f"{message.author.mention} kullanıcısı partner kanalında everyone/here kullandı.",
+                            color=0xFF6B6B,
+                            timestamp=datetime.now(timezone.utc)
+                        )
+                        embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                        embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
+                        embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                        await log_kanal.send(embed=embed)
+            except discord.Forbidden:
+                pass
+
+
+# ── Genel Güvenlik Komutları ─────────────────────────────────────
+
+@bot.command(name="spam-koruma-kur")
+@commands.has_permissions(manage_guild=True)
+async def spam_koruma_kur(ctx):
+    """Genel spam korumasını modal ile kurar."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    # Modal benzeri etkileşim (Discord.py'de modal desteği için)
+    embed = discord.Embed(
+        title="🛡️ Genel Spam Koruma Ayarları",
+        description="Aşağıdaki ayarları belirleyin. Örnek: `.spam-koruma-ayar 5 10 300 @MuteRolü`",
+        color=0x5865F2
+    )
+    embed.add_field(name="📊 Max Mesaj", value="10 saniyede atılabilecek max mesaj sayısı (varsayılan: 5)", inline=False)
+    embed.add_field(name="⏰ Zaman Aralığı", value="Kontrol zaman aralığı saniye cinsinden (varsayılan: 10)", inline=False)
+    embed.add_field(name="🔇 Mute Süresi", value="Susturma süresi saniye cinsinden (varsayılan: 300)", inline=False)
+    embed.add_field(name="🎭 Mute Rolü", value="Susturmak için kullanılacak rol", inline=False)
+    embed.add_field(name="💡 Komut", value="`.spam-koruma-ayar <max_mesaj> <zaman_araligi> <mute_suresi> <mute_rol>`", inline=False)
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name="spam-koruma-ayar")
+@commands.has_permissions(manage_guild=True)
+async def spam_koruma_ayar(ctx, max_mesaj: int = None, zaman_araligi: int = None, mute_suresi: int = None, mute_rol: discord.Role = None):
+    """Genel spam koruma ayarlarını belirler."""
+    if not all([max_mesaj, zaman_araligi, mute_suresi, mute_rol]):
+        await ctx.send(embed=kullanim_embedi("`.spam-koruma-ayar <max_mesaj> <zaman_araligi> <mute_suresi> <mute_rol>`"))
+        return
+    
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    sunucu_ayari["guvenlik_spam_koruma"] = {
+        "aktif": True,
+        "max_mesaj": max_mesaj,
+        "zaman_araligi": zaman_araligi,
+        "mute_suresi": mute_suresi,
+        "mute_rol": mute_rol.id
+    }
+    
+    ayarlari_kaydet(ayarlar)
+    
+    embed = discord.Embed(
+        title="✅ Genel Spam Koruma Ayarlandı",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Max Mesaj", value=f"**{max_mesaj}** mesaj", inline=True)
+    embed.add_field(name="Zaman Aralığı", value=f"**{zaman_araligi}** saniye", inline=True)
+    embed.add_field(name="Mute Süresi", value=f"**{mute_suresi//60}** dakika", inline=True)
+    embed.add_field(name="Mute Rolü", value=mute_rol.mention, inline=False)
+    embed.set_footer(text=f"Ayarlayan: {ctx.author}")
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name="link-koruma-kur")
+@commands.has_permissions(manage_guild=True)
+async def link_koruma_kur(ctx):
+    """Genel link korumasını kurar."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    embed = discord.Embed(
+        title="🔗 Genel Link Koruma Ayarları",
+        description="Link korumasını aktif etmek ve muaf roller/kanallar belirlemek için aşağıdaki komutları kullanın:",
+        color=0x5865F2
+    )
+    embed.add_field(name="✅ Aktif Et", value="`.link-koruma-aktif`", inline=True)
+    embed.add_field(name="❌ Devre Dışı", value="`.link-koruma-kapat`", inline=True)
+    embed.add_field(name="🎭 Muaf Rol Ekle", value="`.link-koruma-muaf-rol @rol`", inline=False)
+    embed.add_field(name="📢 Muaf Kanal Ekle", value="`.link-koruma-muaf-kanal #kanal`", inline=False)
+    embed.add_field(name="📋 Durum", value="`.link-koruma-durum`", inline=False)
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name="link-koruma-aktif")
+@commands.has_permissions(manage_guild=True)
+async def link_koruma_aktif(ctx):
+    """Genel link korumasını aktif eder."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    if "guvenlik_link_koruma" not in sunucu_ayari:
+        sunucu_ayari["guvenlik_link_koruma"] = {}
+    
+    sunucu_ayari["guvenlik_link_koruma"]["aktif"] = True
+    ayarlari_kaydet(ayarlar)
+    
+    embed = discord.Embed(
+        title="✅ Genel Link Koruma Aktif",
+        description="Tüm kanallarda link paylaşımı engellendi (muaf olanlar hariç).",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    await ctx.send(embed=embed)
+
+@bot.command(name="link-koruma-kapat")
+@commands.has_permissions(manage_guild=True)
+async def link_koruma_kapat(ctx):
+    """Genel link korumasını kapatır."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    if "guvenlik_link_koruma" in sunucu_ayari:
+        sunucu_ayari["guvenlik_link_koruma"]["aktif"] = False
+        ayarlari_kaydet(ayarlar)
+    
+    embed = discord.Embed(
+        title="❌ Genel Link Koruma Kapatıldı",
+        description="Link paylaşımı serbest bırakıldı.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    await ctx.send(embed=embed)
+
+@bot.command(name="link-koruma-muaf-rol")
+@commands.has_permissions(manage_guild=True)
+async def link_koruma_muaf_rol(ctx, rol: discord.Role):
+    """Link korumasından muaf rol ekler."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    if "guvenlik_link_koruma" not in sunucu_ayari:
+        sunucu_ayari["guvenlik_link_koruma"] = {}
+    if "muaf_roller" not in sunucu_ayari["guvenlik_link_koruma"]:
+        sunucu_ayari["guvenlik_link_koruma"]["muaf_roller"] = []
+    
+    if rol.id not in sunucu_ayari["guvenlik_link_koruma"]["muaf_roller"]:
+        sunucu_ayari["guvenlik_link_koruma"]["muaf_roller"].append(rol.id)
+        ayarlari_kaydet(ayarlar)
+        
+        embed = discord.Embed(
+            title="✅ Muaf Rol Eklendi",
+            description=f"{rol.mention} rolü link korumasından muaf tutuldu.",
+            color=RENKLER["basari"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("Bu rol zaten muaf listesinde!")
+
+@bot.command(name="link-koruma-muaf-kanal")
+@commands.has_permissions(manage_guild=True)
+async def link_koruma_muaf_kanal(ctx, kanal: discord.TextChannel):
+    """Link korumasından muaf kanal ekler."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    
+    if "guvenlik_link_koruma" not in sunucu_ayari:
+        sunucu_ayari["guvenlik_link_koruma"] = {}
+    if "muaf_kanallar" not in sunucu_ayari["guvenlik_link_koruma"]:
+        sunucu_ayari["guvenlik_link_koruma"]["muaf_kanallar"] = []
+    
+    if kanal.id not in sunucu_ayari["guvenlik_link_koruma"]["muaf_kanallar"]:
+        sunucu_ayari["guvenlik_link_koruma"]["muaf_kanallar"].append(kanal.id)
+        ayarlari_kaydet(ayarlar)
+        
+        embed = discord.Embed(
+            title="✅ Muaf Kanal Eklendi",
+            description=f"{kanal.mention} kanalı link korumasından muaf tutuldu.",
+            color=RENKLER["basari"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("Bu kanal zaten muaf listesinde!")
+
+@bot.command(name="link-koruma-durum")
+@commands.has_permissions(manage_guild=True)
+async def link_koruma_durum(ctx):
+    """Genel link koruma durumunu gösterir."""
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.get(gk, {})
+    link_ayar = sunucu_ayari.get("guvenlik_link_koruma", {})
+    
+    embed = discord.Embed(
+        title="🔗 Genel Link Koruma Durumu",
+        color=0x5865F2,
+        timestamp=datetime.now(timezone.utc)
+    )
+    
+    durum = "✅ Aktif" if link_ayar.get("aktif", False) else "❌ Pasif"
+    embed.add_field(name="Durum", value=durum, inline=True)
+    
+    muaf_roller = link_ayar.get("muaf_roller", [])
+    muaf_kanallar = link_ayar.get("muaf_kanallar", [])
+    
+    if muaf_roller:
+        roller_text = "\n".join([f"<@&{rid}>" for rid in muaf_roller[:5]])
+        if len(muaf_roller) > 5:
+            roller_text += f"\n...ve {len(muaf_roller)-5} rol daha"
+        embed.add_field(name="🎭 Muaf Roller", value=roller_text or "Yok", inline=False)
+    
+    if muaf_kanallar:
+        kanallar_text = "\n".join([f"<#{kid}>" for kid in muaf_kanallar[:5]])
+        if len(muaf_kanallar) > 5:
+            kanallar_text += f"\n...ve {len(muaf_kanallar)-5} kanal daha"
+        embed.add_field(name="📢 Muaf Kanallar", value=kanallar_text or "Yok", inline=False)
+    
+    await ctx.send(embed=embed)
 
 
 app = Flask(__name__)
