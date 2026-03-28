@@ -6066,8 +6066,8 @@ async def spam_koruma_kur(ctx):
                 ayarlari_kaydet(ayarlar)
                 
                 embed = discord.Embed(
-                    title="✅ Spam Koruma Ayarları Kaydedildi",
-                    description=f"Mute rolü ayarlamak için `.spam-koruma-rol @rol` komutunu kullanın.",
+                    title="✅ Spam Koruma Ayarlandı",
+                    description="Mute rolü ayarlamak için `.spam-koruma-rol @rol` komutunu kullanın.",
                     color=RENKLER["basari"],
                     timestamp=datetime.now(timezone.utc)
                 )
@@ -6080,39 +6080,16 @@ async def spam_koruma_kur(ctx):
             except ValueError:
                 await interaction.response.send_message("Lütfen tüm alanlara geçerli sayılar girin!", ephemeral=True)
     
-    await ctx.send("Spam koruma ayarları için modal açılıyor...", view=SpamModalView())
+    await ctx.send("Modal açmak için butona tıklayın:", view=SpamModalView())
 
 class SpamModalView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=60)
     
-    @discord.ui.button(label="🛡️ Ayarları Yapılandır", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary, custom_id="spam_modal_open")
     async def callback(self, interaction: discord.Interaction):
         modal = SpamModal()
         await interaction.response.send_modal(modal)
-
-@bot.command(name="spam-koruma-rol")
-@commands.has_permissions(manage_guild=True)
-async def spam_koruma_rol(ctx, rol: discord.Role):
-    """Spam koruması için mute rolü ayarlar."""
-    ayarlar = ayarlari_yukle()
-    gk = str(ctx.guild.id)
-    sunucu_ayari = ayarlar.get(gk, {})
-    
-    if "guvenlik_spam_koruma" not in sunucu_ayari:
-        await ctx.send("Önce `.spam-koruma-kur` komutu ile ayarları yapın!")
-        return
-    
-    sunucu_ayari["guvenlik_spam_koruma"]["mute_rol"] = rol.id
-    ayarlari_kaydet(ayarlar)
-    
-    embed = discord.Embed(
-        title="✅ Spam Koruma Rolü Ayarlandı",
-        description=f"Spam yapan kullanıcılar {rol.mention} rolü ile susturulacak.",
-        color=RENKLER["basari"],
-        timestamp=datetime.now(timezone.utc)
-    )
-    await ctx.send(embed=embed)
 
 @bot.command(name="link-koruma-kur")
 @commands.has_permissions(manage_guild=True)
@@ -6154,13 +6131,13 @@ async def link_koruma_kur(ctx):
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
     
-    await ctx.send("Link koruma ayarları için modal açılıyor...", view=LinkModalView())
+    await ctx.send("Modal açmak için butona tıklayın:", view=LinkModalView())
 
 class LinkModalView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=60)
     
-    @discord.ui.button(label="🔗 Ayarları Yapılandır", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="🔗 Modal Aç", style=discord.ButtonStyle.primary, custom_id="link_modal_open")
     async def callback(self, interaction: discord.Interaction):
         modal = LinkModal()
         await interaction.response.send_modal(modal)
