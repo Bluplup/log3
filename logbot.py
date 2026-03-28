@@ -6077,6 +6077,15 @@ class SpamModal(discord.ui.Modal, title="Spam Koruma Ayarları"):
         except ValueError:
             await interaction.response.send_message("Lütfen tüm alanlara geçerli sayılar girin!", ephemeral=True)
 
+class SpamModalView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+    
+    @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary)
+    async def callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = SpamModal()
+        await interaction.response.send_modal(modal)
+
 class LinkModal(discord.ui.Modal, title="Link Koruma Ayarları"):
     aktif_mi = discord.ui.TextInput(
         label="Link Koruma Aktif? (evet/hayır)",
@@ -6112,6 +6121,15 @@ class LinkModal(discord.ui.Modal, title="Link Koruma Ayarları"):
         )
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class LinkModalView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+    
+    @discord.ui.button(label="🔗 Modal Aç", style=discord.ButtonStyle.primary)
+    async def callback(self, interaction: discord.Interaction):
+        modal = LinkModal()
+        await interaction.response.send_modal(modal)
 
 
 # ── Genel Güvenlik Komutları ─────────────────────────────────────
