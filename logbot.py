@@ -1133,26 +1133,26 @@ def mesajda_yasakli_kelime_var_mi(mesaj: str, yasakli_kelimeler: list[str]) -> b
     return False
 
 
-@bot.tree.command(name="kufur-kur", description="Küfür koruması ayarı yapar")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def kufur_kur(interaction: discord.Interaction):
+@bot.command(name="kufur-kur")
+@commands.has_permissions(manage_guild=True)
+async def kufur_kur(ctx):
     """
     Modal açarak küfür koruması için yasak kelimeleri yapılandırır.
     Kelimeleri virgül ile ayırarak girin.
     """
-    await interaction.response.send_modal(KufurKorumasıModal())
+    await ctx.send("Modal açmak için butona tıklayın:", view=KufurModalView())
 
 
-@bot.tree.command(name="kufur-durum", description="Küfür koruması ayarlarını gösterir")
-@app_commands.checks.has_permissions(manage_guild=True)
-async def kufur_durum(interaction: discord.Interaction):
+@bot.command(name="kufur-durum")
+@commands.has_permissions(manage_guild=True)
+async def kufur_durum(ctx):
     """Şu anda tanımlı olan yasak kelimeleri ve sayılarını gösterir."""
-    kelimeler = kufur_kelimelerini_al(interaction.guild_id)
+    kelimeler = kufur_kelimelerini_al(ctx.guild.id)
     
     if not kelimeler:
         embed = discord.Embed(
             title="ℹ️ Küfür Koruması",
-            description="Bu sunucuda henüz yasak kelime tanımlanmamış.\n`/kufur-kur` komutu ile ayarla!",
+            description="Bu sunucuda henüz yasak kelime tanımlanmamış.\n`.kufur-kur` komutu ile ayarla!",
             color=RENKLER["bilgi"]
         )
     else:
@@ -1174,43 +1174,41 @@ async def kufur_durum(interaction: discord.Interaction):
         )
     
     embed.set_footer(text=zaman_damgasi())
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await ctx.send(embed=embed)
 
 
-@bot.tree.command(name="kufur-temizle", description="Tüm yasak kelimeleri siler")
-@app_commands.checks.has_permissions(administrator=True)
-async def kufur_temizle(interaction: discord.Interaction):
+@bot.command(name="kufur-temizle")
+@commands.has_permissions(administrator=True)
+async def kufur_temizle(ctx):
     """Tüm yasak kelimeleri siler ve küfür korumasını kapatır."""
     
-    class KufurTemizleView(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=30)
-
-        @discord.ui.button(label="Evet, Sil", style=discord.ButtonStyle.danger, emoji="⚠️")
-        async def onayla(self, btn_i: discord.Interaction, button: discord.ui.Button):
-            kufur_kelimelerini_kaydet(btn_i.guild_id, [])
-            embed = discord.Embed(
-                title="🗑️ Yasak Kelimeler Silindi",
-                description="Tüm yasak kelimeleri kaldırıldı, küfür koruması kapatıldı.",
-                color=RENKLER["basari"]
-            )
-            await btn_i.response.edit_message(embed=embed, view=None)
-
-        @discord.ui.button(label="İptal", style=discord.ButtonStyle.secondary, emoji="✖️")
-        async def iptal(self, btn_i: discord.Interaction, button: discord.ui.Button):
-            embed = discord.Embed(
-                title="✅ İptal Edildi",
-                description="Silme işlemi iptal edildi.",
-                color=RENKLER["bilgi"]
-            )
-            await btn_i.response.edit_message(embed=embed, view=None)
-
+    if ctx.guild.id not in _kufur_kelimeler:
+        await ctx.send("Bu sunucuda zaten küfür koruması ayarlanmamış.")
+        return
+    
+    del _kufur_kelimeler[ctx.guild.id]
+    kufur_kelimelerini_kaydet()
+    
     embed = discord.Embed(
-        title="⚠️ Emin misiniz?",
-        description="Bu işlem tüm yasak kelimeleri **kalıcı olarak** silecek!\nGeri alınamaz.",
-        color=RENKLER["hata"]
+        title="🗑️ Küfür Koruması Temizlendi",
+        description="Tüm yasak kelimeler silindi ve küfür koruması kapatıldı.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
     )
-    await interaction.response.send_message(embed=embed, view=KufurTemizleView(), ephemeral=True)
+    embed.set_footer(text=f"İşlemi yapan: {ctx.author}")
+    
+    await ctx.send(embed=embed)
+
+
+# Kufur Modal View
+class KufurModalView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+    
+    @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary)
+    async def callback(self, view, interaction: discord.Interaction, button):
+        modal = KufurKorumasıModal()
+        await interaction.response.send_modal(modal)
 
 
 # Yetki hataları için ortak yakalayıcı
@@ -1221,14 +1219,14 @@ async def kufur_temizle(interaction: discord.Interaction):
 @kufur_kur.error
 @kufur_durum.error
 @kufur_temizle.error
-async def komut_hata(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, app_commands.MissingPermissions):
+async def komut_hata(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
         embed = discord.Embed(
             title="❌ Yetersiz Yetki",
             description="Bu komutu kullanmak için **Sunucuyu Yönet** iznine ihtiyacınız var.",
             color=RENKLER["hata"]
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await ctx.send(embed=embed)
 
 
 # ─────────────────────────────────────────
