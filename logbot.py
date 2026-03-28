@@ -2843,7 +2843,7 @@ async def gelismis_yardim_v3(ctx):
         e.add_field(name="Log", value="`.logkur`\n`.logkurkanal`\n`/log-kur` • `/log-kaldir`\n`/log-durum` • `/log-sifirla`", inline=False)
         e.add_field(name="Level", value="`.levelkur`\n`.levelrol <seviye> @rol`\n`.levelrolsil <seviye>`\n`.levelrolleri`\n`.levelmesajtest [@uye]`\n`.leveldurum` • `.seviye [@uye]`", inline=False)
         e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
-        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Modal ile spam koruma ayarları\n`.spam-koruma-rol @rol` ┗ Spam mute rolü ayarla\n`.link-koruma-kur` ┗ Modal ile link koruma ayarları\n`.link-koruma-muaf-rol @rol` ┗ Link muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Link muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
+        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Modal ile spam koruma ayarları\n`.link-koruma-kur` ┗ Modal ile link koruma ayarları\n`.link-koruma-muaf-rol @rol` ┗ Link muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Link muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
         e.add_field(name="Diger Sistemler", value="`.antilink`\n`.antilink ac`\n`.antilink kapat`\n`.antilink muaf @rol/#kanal`\n`.renkekle @rol` • `.renkcikar @rol`\n`.renklist` • `.renkpanel`\n`.guvenlikkur` • `.guvenlikdurum`\n`.guvenlikizin @uye/@rol` • `.guvenlikizinsil @uye/@rol`", inline=False)
         return e
 
@@ -2913,7 +2913,7 @@ async def _legacy_yardim(ctx):
         e.add_field(name="Log Sistemi", value="`.logkur` · `.logkurkanal`\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
         e.add_field(name="Level Sistemi", value="`.levelkur` · `.levelrol` · `.levelrolsil` · `.levelrolleri`\n`.levelmesajtest` · `.leveldurum` · `.seviye`", inline=False)
         e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkur` · `.hosgeldindurum` · `.hosgeldinmesajtest`", inline=False)
-        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Modal ile spam koruma ayarları\n`.spam-koruma-rol @rol` ┗ Spam mute rolü ayarla\n`.link-koruma-kur` ┗ Modal ile link koruma ayarları\n`.link-koruma-muaf-rol @rol` ┗ Link muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Link muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
+        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Modal ile spam koruma ayarları\n`.link-koruma-kur` ┗ Modal ile link koruma ayarları\n`.link-koruma-muaf-rol @rol` ┗ Link muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Link muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
         return e
 
     class HelpView(discord.ui.View):
@@ -5921,50 +5921,39 @@ async def on_message(message):
         
         if ayni_mesaj_sayisi > max_ayni_mesaj:
             try:
-                # Mute uygula
+                # Timeout uygula
                 mute_suresi = spam_ayar.get("mute_suresi", 300)  # 5 dakika
-                mute_rol_id = spam_ayar.get("mute_rol")
                 
-                if mute_rol_id:
-                    mute_rol = message.guild.get_role(mute_rol_id)
-                    if mute_rol:
-                        await message.author.add_roles(mute_rol, reason="Aynı mesaj spam koruması - Genel güvenlik")
-                        
-                        # Embed bildirim gönder
+                await message.author.timeout(timedelta(seconds=mute_suresi), reason="Aynı mesaj spam koruması - Genel güvenlik")
+                
+                # Embed bildirim gönder
+                embed = discord.Embed(
+                    title="🔇 Spam Cezası",
+                    description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu!",
+                    color=0xFF9500,
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
+                embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
+                await message.channel.send(embed=embed, delete_after=10)
+                
+                # Log gönder
+                log_kanal_id = sunucu_ayari.get("guvenlik_log")
+                if log_kanal_id:
+                    log_kanal = message.guild.get_channel(log_kanal_id)
+                    if log_kanal:
                         embed = discord.Embed(
                             title="🔇 Spam Cezası",
-                            description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu!",
+                            description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu.",
                             color=0xFF9500,
                             timestamp=datetime.now(timezone.utc)
                         )
                         embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
                         embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
                         embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
-                        await message.channel.send(embed=embed, delete_after=10)
-                        
-                        # Log gönder
-                        log_kanal_id = sunucu_ayari.get("guvenlik_log")
-                        if log_kanal_id:
-                            log_kanal = message.guild.get_channel(log_kanal_id)
-                            if log_kanal:
-                                embed = discord.Embed(
-                                    title="🔇 Spam Cezası",
-                                    description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu.",
-                                    color=0xFF9500,
-                                    timestamp=datetime.now(timezone.utc)
-                                )
-                                embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
-                                embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
-                                embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
-                                embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
-                                await log_kanal.send(embed=embed)
-                        
-                        # Otomatik unmut
-                        await asyncio.sleep(mute_suresi)
-                        try:
-                            await message.author.remove_roles(mute_rol, reason="Spam koruması - Süre doldu")
-                        except:
-                            pass
+                        embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                        await log_kanal.send(embed=embed)
             except discord.Forbidden:
                 pass
     
@@ -6056,15 +6045,14 @@ class SpamModal(discord.ui.Modal, title="Spam Koruma Ayarları"):
                 "aktif": True,
                 "max_ayni_mesaj": max_msg,
                 "zaman_araligi": zaman,
-                "mute_suresi": sure,
-                "mute_rol": None  # Rol ayrıca ayarlanacak
+                "mute_suresi": sure
             }
             
             ayarlari_kaydet(ayarlar)
             
             embed = discord.Embed(
                 title="✅ Spam Koruma Ayarlandı",
-                description="Mute rolü ayarlamak için `.spam-koruma-rol @rol` komutunu kullanın.",
+                description="Spam yapan kullanıcılara otomatik timeout uygulanacak.",
                 color=RENKLER["basari"],
                 timestamp=datetime.now(timezone.utc)
             )
