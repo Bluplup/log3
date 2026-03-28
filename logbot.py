@@ -2843,7 +2843,7 @@ async def gelismis_yardim_v3(ctx):
         e.add_field(name="Log", value="`.logkur`\n`.logkurkanal`\n`/log-kur` • `/log-kaldir`\n`/log-durum` • `/log-sifirla`", inline=False)
         e.add_field(name="Level", value="`.levelkur`\n`.levelrol <seviye> @rol`\n`.levelrolsil <seviye>`\n`.levelrolleri`\n`.levelmesajtest [@uye]`\n`.leveldurum` • `.seviye [@uye]`", inline=False)
         e.add_field(name="Hosgeldin", value="`.hosgeldinkur`\n`.hosgeldindurum`\n`.hosgeldinmesajtest [@uye]`", inline=False)
-        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Spam koruması ayarları\n`.spam-koruma-ayar <max> <zaman> <sure> <rol>` ┗ Spam ayarla\n`.link-koruma-kur` ┗ Link koruması ayarları\n`.link-koruma-aktif/.link-koruma-kapat` ┗ Link koruması\n`.link-koruma-muaf-rol @rol` ┗ Muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
+        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Modal ile spam koruma ayarları\n`.spam-koruma-rol @rol` ┗ Spam mute rolü ayarla\n`.link-koruma-kur` ┗ Modal ile link koruma ayarları\n`.link-koruma-muaf-rol @rol` ┗ Link muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Link muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
         e.add_field(name="Diger Sistemler", value="`.antilink`\n`.antilink ac`\n`.antilink kapat`\n`.antilink muaf @rol/#kanal`\n`.renkekle @rol` • `.renkcikar @rol`\n`.renklist` • `.renkpanel`\n`.guvenlikkur` • `.guvenlikdurum`\n`.guvenlikizin @uye/@rol` • `.guvenlikizinsil @uye/@rol`", inline=False)
         return e
 
@@ -2913,7 +2913,7 @@ async def _legacy_yardim(ctx):
         e.add_field(name="Log Sistemi", value="`.logkur` · `.logkurkanal`\n`/log-kur` · `/log-kaldir` · `/log-durum` · `/log-sifirla`", inline=False)
         e.add_field(name="Level Sistemi", value="`.levelkur` · `.levelrol` · `.levelrolsil` · `.levelrolleri`\n`.levelmesajtest` · `.leveldurum` · `.seviye`", inline=False)
         e.add_field(name="Hosgeldin Sistemi", value="`.hosgeldinkur` · `.hosgeldindurum` · `.hosgeldinmesajtest`", inline=False)
-        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Spam koruması ayarları\n`.spam-koruma-ayar <max> <zaman> <sure> <rol>` ┗ Spam ayarla\n`.link-koruma-kur` ┗ Link koruması ayarları\n`.link-koruma-aktif/.link-koruma-kapat` ┗ Link koruması\n`.link-koruma-muaf-rol @rol` ┗ Muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
+        e.add_field(name="🛡️ Guvenlik Sistemleri", value="`.spam-koruma-kur` ┗ Modal ile spam koruma ayarları\n`.spam-koruma-rol @rol` ┗ Spam mute rolü ayarla\n`.link-koruma-kur` ┗ Modal ile link koruma ayarları\n`.link-koruma-muaf-rol @rol` ┗ Link muaf rol ekle\n`.link-koruma-muaf-kanal #kanal` ┗ Link muaf kanal ekle\n`.link-koruma-durum` ┗ Link koruma durumu", inline=False)
         return e
 
     class HelpView(discord.ui.View):
