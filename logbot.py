@@ -6018,75 +6018,115 @@ async def on_message(message):
     
     # ── Genel Güvenlik Komutları ─────────────────────────────────────
 
+# ── Modal Sınıfları ─────────────────────────────────────
+class SpamModal(discord.ui.Modal, title="Spam Koruma Ayarları"):
+    max_ayni_mesaj = discord.ui.TextInput(
+        label="Maksimum Aynı Mesaj",
+        placeholder="Örn: 3 (10 saniyede aynı mesajdan en fazla 3 kez)",
+        style=discord.TextStyle.short,
+        required=True,
+        default="3"
+    )
+    zaman_araligi = discord.ui.TextInput(
+        label="Zaman Aralığı (saniye)",
+        placeholder="Örn: 10",
+        style=discord.TextStyle.short,
+        required=True,
+        default="10"
+    )
+    mute_suresi = discord.ui.TextInput(
+        label="Mute Süresi (saniye)",
+        placeholder="Örn: 300 (5 dakika)",
+        style=discord.TextStyle.short,
+        required=True,
+        default="300"
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            max_msg = int(self.max_ayni_mesaj.value)
+            zaman = int(self.zaman_araligi.value)
+            sure = int(self.mute_suresi.value)
+            
+            ayarlar = ayarlari_yukle()
+            gk = str(interaction.guild.id)
+            sunucu_ayari = ayarlar.setdefault(gk, {})
+            
+            sunucu_ayari["guvenlik_spam_koruma"] = {
+                "aktif": True,
+                "max_ayni_mesaj": max_msg,
+                "zaman_araligi": zaman,
+                "mute_suresi": sure,
+                "mute_rol": None  # Rol ayrıca ayarlanacak
+            }
+            
+            ayarlari_kaydet(ayarlar)
+            
+            embed = discord.Embed(
+                title="✅ Spam Koruma Ayarlandı",
+                description="Mute rolü ayarlamak için `.spam-koruma-rol @rol` komutunu kullanın.",
+                color=RENKLER["basari"],
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.add_field(name="Max Aynı Mesaj", value=f"**{max_msg}** mesaj", inline=True)
+            embed.add_field(name="Zaman Aralığı", value=f"**{zaman}** saniye", inline=True)
+            embed.add_field(name="Mute Süresi", value=f"**{sure//60}** dakika", inline=True)
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except ValueError:
+            await interaction.response.send_message("Lütfen tüm alanlara geçerli sayılar girin!", ephemeral=True)
+
+class LinkModal(discord.ui.Modal, title="Link Koruma Ayarları"):
+    aktif_mi = discord.ui.TextInput(
+        label="Link Koruma Aktif? (evet/hayır)",
+        placeholder="Örn: evet",
+        style=discord.TextStyle.short,
+        required=True,
+        default="evet"
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        ayarlar = ayarlari_yukle()
+        gk = str(interaction.guild.id)
+        sunucu_ayari = ayarlar.setdefault(gk, {})
+        
+        if "guvenlik_link_koruma" not in sunucu_ayari:
+            sunucu_ayari["guvenlik_link_koruma"] = {}
+        
+        aktif = self.aktif_mi.value.lower() in ["evet", "aktif", "true", "1", "aç"]
+        sunucu_ayari["guvenlik_link_koruma"]["aktif"] = aktif
+        
+        if "muaf_roller" not in sunucu_ayari["guvenlik_link_koruma"]:
+            sunucu_ayari["guvenlik_link_koruma"]["muaf_roller"] = []
+        if "muaf_kanallar" not in sunucu_ayari["guvenlik_link_koruma"]:
+            sunucu_ayari["guvenlik_link_koruma"]["muaf_kanallar"] = []
+        
+        ayarlari_kaydet(ayarlar)
+        
+        embed = discord.Embed(
+            title="✅ Link Koruma Ayarlandı",
+            description=f"Link koruması {'aktif' if aktif else 'pasif'} durumuna ayarlandı.\n\nMuaf roller eklemek için: `.link-koruma-muaf-rol @rol`\nMuaf kanallar eklemek için: `.link-koruma-muaf-kanal #kanal`",
+            color=RENKLER["basari"] if aktif else RENKLER["hata"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ── Genel Güvenlik Komutları ─────────────────────────────────────
+
 @bot.command(name="spam-koruma-kur")
 @commands.has_permissions(manage_guild=True)
 async def spam_koruma_kur(ctx):
     """Genel spam korumasını modal ile kurar."""
-    class SpamModal(discord.ui.Modal, title="Spam Koruma Ayarları"):
-        max_ayni_mesaj = discord.ui.TextInput(
-            label="Maksimum Aynı Mesaj",
-            placeholder="Örn: 3 (10 saniyede aynı mesajdan en fazla 3 kez)",
-            style=discord.TextStyle.short,
-            required=True,
-            default="3"
-        )
-        zaman_araligi = discord.ui.TextInput(
-            label="Zaman Aralığı (saniye)",
-            placeholder="Örn: 10",
-            style=discord.TextStyle.short,
-            required=True,
-            default="10"
-        )
-        mute_suresi = discord.ui.TextInput(
-            label="Mute Süresi (saniye)",
-            placeholder="Örn: 300 (5 dakika)",
-            style=discord.TextStyle.short,
-            required=True,
-            default="300"
-        )
-        
-        async def on_submit(self, interaction: discord.Interaction):
-            try:
-                max_msg = int(self.max_ayni_mesaj.value)
-                zaman = int(self.zaman_araligi.value)
-                sure = int(self.mute_suresi.value)
-                
-                ayarlar = ayarlari_yukle()
-                gk = str(interaction.guild.id)
-                sunucu_ayari = ayarlar.setdefault(gk, {})
-                
-                sunucu_ayari["guvenlik_spam_koruma"] = {
-                    "aktif": True,
-                    "max_ayni_mesaj": max_msg,
-                    "zaman_araligi": zaman,
-                    "mute_suresi": sure,
-                    "mute_rol": None  # Rol ayrıca ayarlanacak
-                }
-                
-                ayarlari_kaydet(ayarlar)
-                
-                embed = discord.Embed(
-                    title="✅ Spam Koruma Ayarlandı",
-                    description="Mute rolü ayarlamak için `.spam-koruma-rol @rol` komutunu kullanın.",
-                    color=RENKLER["basari"],
-                    timestamp=datetime.now(timezone.utc)
-                )
-                embed.add_field(name="Max Aynı Mesaj", value=f"**{max_msg}** mesaj", inline=True)
-                embed.add_field(name="Zaman Aralığı", value=f"**{zaman}** saniye", inline=True)
-                embed.add_field(name="Mute Süresi", value=f"**{sure//60}** dakika", inline=True)
-                
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-                
-            except ValueError:
-                await interaction.response.send_message("Lütfen tüm alanlara geçerli sayılar girin!", ephemeral=True)
-    
     await ctx.send("Modal açmak için butona tıklayın:", view=SpamModalView())
 
 class SpamModalView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=60)
     
-    @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary, custom_id="spam_modal_open")
+    @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary)
     async def callback(self, interaction: discord.Interaction):
         modal = SpamModal()
         await interaction.response.send_modal(modal)
@@ -6095,52 +6135,7 @@ class SpamModalView(discord.ui.View):
 @commands.has_permissions(manage_guild=True)
 async def link_koruma_kur(ctx):
     """Genel link korumasını modal ile kurar."""
-    class LinkModal(discord.ui.Modal, title="Link Koruma Ayarları"):
-        aktif_mi = discord.ui.TextInput(
-            label="Link Koruma Aktif? (evet/hayır)",
-            placeholder="Örn: evet",
-            style=discord.TextStyle.short,
-            required=True,
-            default="evet"
-        )
-        
-        async def on_submit(self, interaction: discord.Interaction):
-            ayarlar = ayarlari_yukle()
-            gk = str(interaction.guild.id)
-            sunucu_ayari = ayarlar.setdefault(gk, {})
-            
-            if "guvenlik_link_koruma" not in sunucu_ayari:
-                sunucu_ayari["guvenlik_link_koruma"] = {}
-            
-            aktif = self.aktif_mi.value.lower() in ["evet", "aktif", "true", "1", "aç"]
-            sunucu_ayari["guvenlik_link_koruma"]["aktif"] = aktif
-            
-            if "muaf_roller" not in sunucu_ayari["guvenlik_link_koruma"]:
-                sunucu_ayari["guvenlik_link_koruma"]["muaf_roller"] = []
-            if "muaf_kanallar" not in sunucu_ayari["guvenlik_link_koruma"]:
-                sunucu_ayari["guvenlik_link_koruma"]["muaf_kanallar"] = []
-            
-            ayarlari_kaydet(ayarlar)
-            
-            embed = discord.Embed(
-                title="✅ Link Koruma Ayarlandı",
-                description=f"Link koruması {'aktif' if aktif else 'pasif'} durumuna ayarlandı.\n\nMuaf roller eklemek için: `.link-koruma-muaf-rol @rol`\nMuaf kanallar eklemek için: `.link-koruma-muaf-kanal #kanal`",
-                color=RENKLER["basari"] if aktif else RENKLER["hata"],
-                timestamp=datetime.now(timezone.utc)
-            )
-            
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-    
     await ctx.send("Modal açmak için butona tıklayın:", view=LinkModalView())
-
-class LinkModalView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=60)
-    
-    @discord.ui.button(label="🔗 Modal Aç", style=discord.ButtonStyle.primary, custom_id="link_modal_open")
-    async def callback(self, interaction: discord.Interaction):
-        modal = LinkModal()
-        await interaction.response.send_modal(modal)
 
 @bot.command(name="link-koruma-aktif")
 @commands.has_permissions(manage_guild=True)
