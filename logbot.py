@@ -1206,7 +1206,7 @@ class KufurModalView(discord.ui.View):
         super().__init__(timeout=60)
     
     @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary)
-    async def callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def callback(self, view, interaction: discord.Interaction, button):
         modal = KufurKorumasıModal()
         await interaction.response.send_modal(modal)
 
@@ -6203,6 +6203,38 @@ async def on_message(message):
                 log_embed.set_footer(text=zaman_damgasi())
                 await log_kanal.send(embed=log_embed)
         return
+
+    # Küfür koruması
+    if kufur_kontrol(message.guild.id, message.content):
+        try:
+            await message.delete()
+            
+            # Embed uyarı gönder
+            embed = discord.Embed(
+                title="🚫 Küfür Yasak",
+                description=f"{message.author.mention} Küfür kullanımı yasaktır!",
+                color=0xFF6B6B,
+                timestamp=datetime.now(timezone.utc)
+            )
+            await message.channel.send(embed=embed, delete_after=5)
+            
+            # Log gönder (varsa)
+            log_kanal_id = sunucu_ayari.get("guvenlik_log")
+            if log_kanal_id:
+                log_kanal = message.guild.get_channel(log_kanal_id)
+                if log_kanal:
+                    embed = discord.Embed(
+                        title="🚫 Küfür Kullanımı",
+                        description=f"{message.author.mention} kullanıcısı küfürlü mesaj attı.",
+                        color=0xFF6B6B,
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                    embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
+                    embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                    await log_kanal.send(embed=embed)
+        except discord.Forbidden:
+            pass
 
     # Genel spam koruması
     spam_ayar = sunucu_ayari.get("guvenlik_spam_koruma", {})
