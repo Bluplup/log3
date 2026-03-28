@@ -3122,7 +3122,7 @@ def antilink_kaydet(guild_id: int, veri: dict):
 # ─────────────────────────────────────────
 
 import re
-DAVET_REGEX = re.compile(r"discord(?:\.gg|app\.com/invite|\.com/invite)/[a-zA-Z0-9\-]+")
+DAVET_REGEX = re.compile(r"(?:https?://)?discord(?:\.gg|app\.com/invite|\.com/invite)/[a-zA-Z0-9_-]+")
 
 @bot.event
 async def on_message(message: discord.Message):
