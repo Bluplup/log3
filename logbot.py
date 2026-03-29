@@ -4706,7 +4706,7 @@ async def anime_rol_panel(ctx):
 
     class AnimeRolView(discord.ui.View):
         def __init__(self, sayfa: int = 0):
-            super().__init__(timeout=None)
+            super().__init__(timeout=99999999999)
             self.sayfa = sayfa
             self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
             self.add_item(AnimeRolSec(sayfa))
@@ -4783,7 +4783,7 @@ async def anime_rol_panel_v2(ctx):
 
     class AnimeRolViewV2(discord.ui.View):
         def __init__(self, sayfa: int = 0):
-            super().__init__(timeout=None)
+            super().__init__(timeout=99999999999)
             self.sayfa = sayfa
             self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
             self.add_item(AnimeRolSecV2(sayfa))
