@@ -1226,7 +1226,49 @@ class KufurModalView(discord.ui.View):
         await interaction.response.send_modal(modal)
 
 
-# Yetki hataları için ortak yakalayıcı
+@bot.command(name="blupblup")
+@commands.has_permissions(manage_roles=True)
+async def blupblup(ctx, yeni_isim: str):
+    """İsminde 'blup' geçen herkesin ismini değiştirir."""
+    if not ctx.guild.me.guild_permissions.manage_nicknames:
+        await ctx.send("Botun isim değiştirme yetkisi yok!")
+        return
+    
+    await ctx.send("İsimlerinde 'blup' aranıyor...")
+    
+    degistirilen = 0
+    hata_sayisi = 0
+    
+    for member in ctx.guild.members:
+        if member.bot:
+            continue
+        
+        # Komutu yazanı hariç tut
+        if member.id == ctx.author.id:
+            continue
+        
+        if "blup" in member.display_name.lower() or "blup" in member.name.lower():
+            try:
+                await member.edit(nick=yeni_isim, reason="Blupblup komutu")
+                degistirilen += 1
+            except discord.Forbidden:
+                hata_sayisi += 1
+            except Exception:
+                hata_sayisi += 1
+    
+    embed = discord.Embed(
+        title="🔄 Blupblup İşlemi Tamamlandı",
+        color=0x5865F2,
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="✅ Değiştirilen Üye", value=f"**{degistirilen}** kişi", inline=True)
+    embed.add_field(name="❌ Değiştirilemeyen", value=f"**{hata_sayisi}** kişi", inline=True)
+    embed.add_field(name="👥 Toplam Üye", value=f"**{len(ctx.guild.members)}** kişi", inline=True)
+    embed.add_field(name="📝 Yeni İsim", value=f"**{yeni_isim}**", inline=False)
+    embed.add_field(name="📝 Not", value=f"**{ctx.author}** hariç tutuldu", inline=False)
+    embed.set_footer(text=f"İşlemi yapan: {ctx.author}")
+    
+    await ctx.send(embed=embed)
 @log_kur.error
 @log_kaldir.error
 @log_durum.error
