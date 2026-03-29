@@ -1118,14 +1118,17 @@ def kufur_kelimelerini_al(guild_id: int) -> list[str]:
     return ayarlar.get(str(guild_id), {}).get("yasakli_kelimeler", [])
 
 def kufur_kontrol(guild_id: int, mesaj: str) -> bool:
-    """Mesajda yasaklı kelime var mı kontrol eder."""
+    """Mesajda tam olarak yasaklı kelime var mı kontrol eder."""
     yasakli_kelimeler = kufur_kelimelerini_al(guild_id)
     if not yasakli_kelimeler:
         return False
     
-    mesaj_temiz = mesaj.lower()
-    for kelime in yasakli_kelimeler:
-        if kelime in mesaj_temiz:
+    mesaj_temiz = mesaj.lower().strip()
+    mesaj_kelimeleri = mesaj_temiz.split()
+    
+    # Sadece tam kelime eşleşmesi kontrol et
+    for kelime in mesaj_kelimeleri:
+        if kelime in yasakli_kelimeler:
             return True
     return False
 
