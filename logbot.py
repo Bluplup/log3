@@ -1221,7 +1221,7 @@ class KufurModalView(discord.ui.View):
         super().__init__(timeout=60)
     
     @discord.ui.button(label="🛡️ Modal Aç", style=discord.ButtonStyle.primary)
-    async def callback(self, view, interaction: discord.Interaction, button):
+    async def callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = KufurKorumasıModal()
         await interaction.response.send_modal(modal)
 
