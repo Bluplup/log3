@@ -7068,6 +7068,16 @@ async def unjail_uygula(ctx, uye: discord.Member = None):
     await ctx.send(embed=discord.Embed(title="Jail Kaldirildi", description=f"{uye.mention} icin onceki roller geri verildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
 
 
+@bot.command(name="rolidler", aliases=["rolid", "rollerid"])
+async def rol_idleri(ctx):
+    roller = ctx.message.role_mentions
+    if not roller:
+        await ctx.send(embed=kullanim_embedi("`.rolidler @rol1 @rol2 @rol3`"))
+        return
+    metin = ", ".join(str(rol.id) for rol in roller)
+    await ctx.send(f"`{metin}`")
+
+
 for _eski in ("yardim", "help", "yardım", "ban"):
     try:
         bot.remove_command(_eski)
