@@ -7297,14 +7297,14 @@ async def yardim_sade(ctx):
 
     def ana_embed():
         embed = temel_embed("Ana Menu", "Daha temiz bir gorunum icin menuyu kisalttim. Kategori veya sistem secip direkt ilgili komutlari gor.")
-        kategori_ozet = [f"`{kategori}` {len(kayitlar)}" for kategori, kayitlar in komutlar.items() if kayitlar]
+        kategori_ozet = [f"**{kategori}** {len(kayitlar)}" for kategori, kayitlar in komutlar.items() if kayitlar]
         sistem_ozet = []
         for sistem, adlar in sistem_haritasi.items():
             sayi = sum(1 for liste in komutlar.values() for kayit in liste if kayit["ad"] in adlar)
-            sistem_ozet.append(f"`{sistem}` {sayi}")
+            sistem_ozet.append(f"**{sistem}** {sayi}")
         embed.add_field(name="Kategoriler", value=" • ".join(kategori_ozet[:8]) or "-", inline=False)
         embed.add_field(name="Sistemler", value=" • ".join(sistem_ozet[:7]) or "-", inline=False)
-        embed.add_field(name="Hizli Baslangic", value="`.profil` • `.ticketpanel` • `.levelkur` • `.gifcevap` • `.jailkur`", inline=False)
+        embed.add_field(name="Hizli Baslangic", value=".profil • .ticketpanel • .levelkur • .gifcevap • .jailkur", inline=False)
         return embed
 
     def detay_embed(baslik: str, kayitlar: list[dict], aciklama: str):
@@ -7396,3 +7396,183 @@ Thread(target=run_flask).start()
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
+
+
+for _eski_help2 in ("yardim", "help", "yardım"):
+    try:
+        bot.remove_command(_eski_help2)
+    except Exception:
+        pass
+
+
+@bot.command(name="yardim", aliases=["yardım", "help"])
+async def yardim_marpel_stili(ctx):
+    komutlar = _yardim_komutlarini_topla()
+    sistem_haritasi = _yardim_sistem_haritasi()
+    sahibi_id = ctx.author.id
+
+    kategori_sirasi = ["Ayarlar", "Moderasyon", "Roller", "Sistemler", "Kullanici", "Eglence", "Slash", "Diger"]
+    kategori_etiketleri = {
+        "Ayarlar": "m:ayarlar",
+        "Moderasyon": "m:mod",
+        "Roller": "m:roller",
+        "Sistemler": "m:extra",
+        "Kullanici": "m:kullanici",
+        "Eglence": "m:eğlence",
+        "Slash": "m:slash",
+        "Diger": "m:komutlar",
+    }
+    kategori_renkleri = {
+        "Ayarlar": "⬛",
+        "Moderasyon": "🟩",
+        "Roller": "🟥",
+        "Sistemler": "🟦",
+        "Kullanici": "🟪",
+        "Eglence": "🟨",
+        "Slash": "🟧",
+        "Diger": "🌈",
+    }
+    sistem_gosterimleri = {
+        "Log": "🧾 log",
+        "Ticket": "🎟 destek",
+        "Partner": "🤝 partner",
+        "Level": "⚙ /rank",
+        "Hosgeldin": "🎉 karşılama",
+        "Guvenlik": "🛡 koruma",
+        "Rol Panelleri": "🎨 roller",
+        "Eglence": "🎊 çekiliş",
+        "Moderasyon": "🔨 mod",
+    }
+    kullanici_sistemleri = [
+        "👤 profil",
+        "📊 seviye",
+        "🌙 afk",
+        "🏠 sunucu",
+        "🎁 çekiliş",
+        "🖼 gifcevap",
+        "🔒 jail",
+        "🧹 rolidler",
+    ]
+
+    def temel_embed(title_text: str, description: str = "") -> discord.Embed:
+        embed = discord.Embed(
+            title=title_text,
+            description=description,
+            color=0x1B1930,
+            timestamp=datetime.now(timezone.utc)
+        )
+        if ctx.guild.icon:
+            embed.set_author(name="Marpel Komutlar", icon_url=ctx.guild.icon.url)
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        else:
+            embed.set_author(name="Marpel Komutlar")
+        embed.set_footer(text=f"Toplam {sum(len(v) for v in komutlar.values())} komut • {zaman_damgasi()}")
+        return embed
+
+    def ana_embed():
+        embed = temel_embed("Marpel Komutlar")
+        kategori_satirlari = []
+        toplam = sum(len(v) for v in komutlar.values())
+        kategori_satirlari.append(f"🌈 **m:komutlar** ({toplam})")
+        for kategori in kategori_sirasi:
+            if komutlar.get(kategori):
+                kategori_satirlari.append(f"{kategori_renkleri.get(kategori, '▫️')} **{kategori_etiketleri.get(kategori, kategori.lower())}** ({len(komutlar[kategori])})")
+        embed.add_field(name="📋 Kategoriler", value="\n".join(kategori_satirlari[:6]), inline=True)
+        embed.add_field(name="👑", value="ㅤ", inline=True)
+
+        sol = []
+        for sistem in ["Eglence", "Guvenlik", "Log", "Ticket", "Rol Panelleri"]:
+            if sistem in sistem_gosterimleri:
+                sol.append(sistem_gosterimleri[sistem])
+        sag = kullanici_sistemleri
+        embed.add_field(name="🛠 Sistemler", value="\n".join(sol[:8]), inline=True)
+        embed.add_field(name="👥 Kullanıcı Sistemleri", value="\n".join(sag[:8]), inline=True)
+        return embed
+
+    def detay_embed(baslik: str, kayitlar: list[dict], aciklama: str):
+        embed = temel_embed(f"Marpel Komutlar", aciklama)
+        embed.add_field(name=baslik, value="\n\n".join(_yardim_parcalari(_yardim_komut_metni(kayitlar), limit=850)[:3]) or "Komut bulunamadi.", inline=False)
+        return embed
+
+    class KategoriSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = []
+            tum = sum(len(v) for v in komutlar.values())
+            secenekler.append(discord.SelectOption(label="Tüm Komutlar", value="__tum__", description=f"{tum} komut"))
+            for kategori in kategori_sirasi:
+                if komutlar.get(kategori):
+                    secenekler.append(discord.SelectOption(
+                        label=kategori,
+                        value=kategori,
+                        description=f"{len(komutlar[kategori])} komut",
+                        emoji="📁"
+                    ))
+            super().__init__(placeholder="Kategoriler", min_values=1, max_values=1, options=secenekler, row=1)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            if self.values[0] == "__tum__":
+                tum = []
+                for kategori in kategori_sirasi + ["Diger"]:
+                    tum.extend(komutlar.get(kategori, []))
+                tum.sort(key=lambda x: x["gosterim"])
+                await interaction.response.edit_message(embed=detay_embed("Tüm Komutlar", tum, "Sunucudaki tüm aktif komutlar."), view=view)
+                return
+            await interaction.response.edit_message(embed=detay_embed(self.values[0], komutlar.get(self.values[0], []), "Seçtiğin kategorideki komutlar."), view=view)
+
+    class SistemSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=sistem, value=sistem, description="Sistem komutlarini gosterir", emoji="⚙️") for sistem in sistem_haritasi]
+            super().__init__(placeholder="Sistemler", min_values=1, max_values=1, options=secenekler, row=2)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            kayitlar = []
+            for liste in komutlar.values():
+                kayitlar.extend([kayit for kayit in liste if kayit["ad"] in sistem_haritasi.get(self.values[0], set())])
+            kayitlar.sort(key=lambda x: x["gosterim"])
+            await interaction.response.edit_message(embed=detay_embed(f"{self.values[0]} Sistemi", kayitlar, "Seçtiğin sistemle ilgili komutlar."), view=view)
+
+    class YardimMenuSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label="Ana Menü", value="ana", description="İlk görünümü aç"),
+                discord.SelectOption(label="Hızlı Başlangıç", value="hizli", description="En sık kullanılan komutlar"),
+            ]
+            super().__init__(placeholder="Yardım Menüsü", min_values=1, max_values=1, options=secenekler, row=3)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            if self.values[0] == "ana":
+                await interaction.response.edit_message(embed=ana_embed(), view=view)
+                return
+            hizli = [
+                {"gosterim": ".profil", "aciklama": "Profil ve seviye durumunu gosterir.", "aliases": []},
+                {"gosterim": ".ticketpanel", "aciklama": "Ticket paneli gonderir.", "aliases": []},
+                {"gosterim": ".levelkur", "aciklama": "Level sistemini modal ile kurar.", "aliases": []},
+                {"gosterim": ".gifcevap", "aciklama": "Whitelistli gif cevap sistemi kurar.", "aliases": []},
+                {"gosterim": ".jailkur", "aciklama": "Jail sistemini modal ile kurar.", "aliases": []},
+            ]
+            await interaction.response.edit_message(embed=detay_embed("Hızlı Başlangıç", hizli, "En sık kullanılan kurulum komutları."), view=view)
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+            self.add_item(KategoriSec())
+            self.add_item(SistemSec())
+            self.add_item(YardimMenuSec())
+
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return False
+            return True
+
+    view = HelpView()
+    await ctx.send(embed=ana_embed(), view=view)
