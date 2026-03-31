@@ -6409,9 +6409,9 @@ async def on_message(message):
                         timestamp=datetime.now(timezone.utc)
                     )
                     embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
-                        embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
-                        embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
-                        await log_kanal.send(embed=embed)
+                    embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
+                    embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                    await log_kanal.send(embed=embed)
 
             yetkili_kufur = _yetkili_kufur_ayar_al(message.guild.id)
             if yetkili_kufur.get("aktif"):
