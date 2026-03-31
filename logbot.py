@@ -1117,21 +1117,6 @@ def kufur_kelimelerini_al(guild_id: int) -> list[str]:
     ayarlar = ayarlari_yukle()
     return ayarlar.get(str(guild_id), {}).get("yasakli_kelimeler", [])
 
-def kufur_kontrol(guild_id: int, mesaj: str) -> bool:
-    """Mesajda tam olarak yasaklı kelime var mı kontrol eder, noktalama işaretlerini göz ardı eder."""
-    yasakli_kelimeler = kufur_kelimelerini_al(guild_id)
-    if not yasakli_kelimeler:
-        return False
-    
-    mesaj_temiz = mesaj.lower()
-    # Kelimeleri ayırırken noktalama işaretlerini göz ardı et
-    mesaj_kelimeleri = re.findall(r'\b\w+\b', mesaj_temiz)
-    
-    for kelime in mesaj_kelimeleri:
-        if kelime in yasakli_kelimeler:
-            return True
-    return False
-
 
 def mesajda_yasakli_kelime_var_mi(mesaj: str, yasakli_kelimeler: list[str]) -> bool:
     """
@@ -1226,49 +1211,7 @@ class KufurModalView(discord.ui.View):
         await interaction.response.send_modal(modal)
 
 
-@bot.command(name="blupblup")
-@commands.has_permissions(manage_roles=True)
-async def blupblup(ctx, yeni_isim: str):
-    """İsminde 'blup' geçen herkesin ismini değiştirir."""
-    if not ctx.guild.me.guild_permissions.manage_nicknames:
-        await ctx.send("Botun isim değiştirme yetkisi yok!")
-        return
-    
-    await ctx.send("İsimlerinde 'blup' aranıyor...")
-    
-    degistirilen = 0
-    hata_sayisi = 0
-    
-    for member in ctx.guild.members:
-        if member.bot:
-            continue
-        
-        # Komutu yazanı hariç tut
-        if member.id == ctx.author.id:
-            continue
-        
-        if "blup" in member.display_name.lower() or "blup" in member.name.lower():
-            try:
-                await member.edit(nick=yeni_isim, reason="Blupblup komutu")
-                degistirilen += 1
-            except discord.Forbidden:
-                hata_sayisi += 1
-            except Exception:
-                hata_sayisi += 1
-    
-    embed = discord.Embed(
-        title="🔄 Blupblup İşlemi Tamamlandı",
-        color=0x5865F2,
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="✅ Değiştirilen Üye", value=f"**{degistirilen}** kişi", inline=True)
-    embed.add_field(name="❌ Değiştirilemeyen", value=f"**{hata_sayisi}** kişi", inline=True)
-    embed.add_field(name="👥 Toplam Üye", value=f"**{len(ctx.guild.members)}** kişi", inline=True)
-    embed.add_field(name="📝 Yeni İsim", value=f"**{yeni_isim}**", inline=False)
-    embed.add_field(name="📝 Not", value=f"**{ctx.author}** hariç tutuldu", inline=False)
-    embed.set_footer(text=f"İşlemi yapan: {ctx.author}")
-    
-    await ctx.send(embed=embed)
+# Yetki hataları için ortak yakalayıcı
 @log_kur.error
 @log_kaldir.error
 @log_durum.error
@@ -4748,7 +4691,7 @@ async def anime_rol_panel(ctx):
 
     class AnimeRolView(discord.ui.View):
         def __init__(self, sayfa: int = 0):
-            super().__init__(timeout=99999999999)
+            super().__init__(timeout=None)
             self.sayfa = sayfa
             self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
             self.add_item(AnimeRolSec(sayfa))
@@ -4825,7 +4768,7 @@ async def anime_rol_panel_v2(ctx):
 
     class AnimeRolViewV2(discord.ui.View):
         def __init__(self, sayfa: int = 0):
-            super().__init__(timeout=99999999999)
+            super().__init__(timeout=None)
             self.sayfa = sayfa
             self.sayfa_sayisi = max(1, (len(roller) + 23) // 24)
             self.add_item(AnimeRolSecV2(sayfa))
@@ -6260,38 +6203,6 @@ async def on_message(message):
                 log_embed.set_footer(text=zaman_damgasi())
                 await log_kanal.send(embed=log_embed)
         return
-
-    # Küfür koruması
-    if kufur_kontrol(message.guild.id, message.content):
-        try:
-            await message.delete()
-            
-            # Embed uyarı gönder
-            embed = discord.Embed(
-                title="🚫 Küfür Yasak",
-                description=f"{message.author.mention} Küfür kullanımı yasaktır!",
-                color=0xFF6B6B,
-                timestamp=datetime.now(timezone.utc)
-            )
-            await message.channel.send(embed=embed, delete_after=5)
-            
-            # Log gönder (varsa)
-            log_kanal_id = sunucu_ayari.get("guvenlik_log")
-            if log_kanal_id:
-                log_kanal = message.guild.get_channel(log_kanal_id)
-                if log_kanal:
-                    embed = discord.Embed(
-                        title="🚫 Küfür Kullanımı",
-                        description=f"{message.author.mention} kullanıcısı küfürlü mesaj attı.",
-                        color=0xFF6B6B,
-                        timestamp=datetime.now(timezone.utc)
-                    )
-                    embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
-                    embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
-                    embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
-                    await log_kanal.send(embed=embed)
-        except discord.Forbidden:
-            pass
 
     # Genel spam koruması
     spam_ayar = sunucu_ayari.get("guvenlik_spam_koruma", {})
