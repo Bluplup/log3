@@ -7266,6 +7266,121 @@ async def ban_final(ctx, hedef: str = None, *, sebep: str = "Sebep belirtilmedi"
     await ctx.send(embed=embed)
     await log_gonder(ctx.guild, "ban_log", embed)
 
+
+for _eski_help in ("yardim", "help", "yardım"):
+    try:
+        bot.remove_command(_eski_help)
+    except Exception:
+        pass
+
+
+@bot.command(name="yardim", aliases=["yardım", "help"])
+async def yardim_sade(ctx):
+    komutlar = _yardim_komutlarini_topla()
+    sistem_haritasi = _yardim_sistem_haritasi()
+    sahibi_id = ctx.author.id
+
+    def temel_embed(baslik: str, aciklama: str) -> discord.Embed:
+        embed = discord.Embed(
+            title=f"Komut Paneli | {baslik}",
+            description=aciklama,
+            color=0x23283B,
+            timestamp=datetime.now(timezone.utc)
+        )
+        if ctx.guild.icon:
+            embed.set_author(name=f"{ctx.guild.name} Komutlar", icon_url=ctx.guild.icon.url)
+            embed.set_thumbnail(url=ctx.guild.icon.url)
+        else:
+            embed.set_author(name=f"{ctx.guild.name} Komutlar")
+        embed.set_footer(text=f"Toplam {sum(len(v) for v in komutlar.values())} komut")
+        return embed
+
+    def ana_embed():
+        embed = temel_embed("Ana Menu", "Daha temiz bir gorunum icin menuyu kisalttim. Kategori veya sistem secip direkt ilgili komutlari gor.")
+        kategori_ozet = [f"`{kategori}` {len(kayitlar)}" for kategori, kayitlar in komutlar.items() if kayitlar]
+        sistem_ozet = []
+        for sistem, adlar in sistem_haritasi.items():
+            sayi = sum(1 for liste in komutlar.values() for kayit in liste if kayit["ad"] in adlar)
+            sistem_ozet.append(f"`{sistem}` {sayi}")
+        embed.add_field(name="Kategoriler", value=" • ".join(kategori_ozet[:8]) or "-", inline=False)
+        embed.add_field(name="Sistemler", value=" • ".join(sistem_ozet[:7]) or "-", inline=False)
+        embed.add_field(name="Hizli Baslangic", value="`.profil` • `.ticketpanel` • `.levelkur` • `.gifcevap` • `.jailkur`", inline=False)
+        return embed
+
+    def detay_embed(baslik: str, kayitlar: list[dict], aciklama: str):
+        embed = temel_embed(baslik, aciklama)
+        parcalar = _yardim_parcalari(_yardim_komut_metni(kayitlar), limit=700)
+        for i, parca in enumerate(parcalar[:3]):
+            embed.add_field(name=f"Komutlar {i + 1}", value=parca, inline=False)
+        return embed
+
+    class KategoriSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=kategori, value=kategori, description=f"{len(kayitlar)} komut") for kategori, kayitlar in komutlar.items() if kayitlar]
+            super().__init__(placeholder="Kategoriler", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=detay_embed(self.values[0], komutlar.get(self.values[0], []), "Bu kategorideki komutlar."), view=view)
+
+    class SistemSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=sistem, value=sistem, description="Sistem komutlarini gosterir") for sistem in sistem_haritasi]
+            super().__init__(placeholder="Sistemler", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            kayitlar = []
+            for liste in komutlar.values():
+                kayitlar.extend([kayit for kayit in liste if kayit["ad"] in sistem_haritasi.get(self.values[0], set())])
+            kayitlar.sort(key=lambda x: x["gosterim"])
+            await interaction.response.edit_message(embed=detay_embed(f"{self.values[0]} Sistemi", kayitlar, "Bu sistemle ilgili komutlar."), view=view)
+
+    class MenuSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label="Ana Menu", value="ana", description="Ozet ekrana don"),
+                discord.SelectOption(label="Tum Komutlar", value="tum", description="Tum aktif komutlari listeler"),
+            ]
+            super().__init__(placeholder="Yardim Menusu", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            if self.values[0] == "ana":
+                await interaction.response.edit_message(embed=ana_embed(), view=view)
+                return
+            tum = []
+            for kategori in ["Ayarlar", "Moderasyon", "Roller", "Sistemler", "Kullanici", "Eglence", "Slash", "Diger"]:
+                tum.extend(komutlar.get(kategori, []))
+            tum.sort(key=lambda x: x["gosterim"])
+            await interaction.response.edit_message(embed=detay_embed("Tum Komutlar", tum, "Aktif komutlar tek listede."), view=view)
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+            self.add_item(KategoriSec())
+            self.add_item(SistemSec())
+            self.add_item(MenuSec())
+
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return False
+            return True
+
+        @discord.ui.button(label="Ana Menu", style=discord.ButtonStyle.secondary, row=3)
+        async def ana(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.edit_message(embed=ana_embed(), view=self)
+
+    view = HelpView()
+    await ctx.send(embed=ana_embed(), view=view)
+
 app = Flask(__name__)
 
 @app.route("/")
