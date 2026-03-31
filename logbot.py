@@ -2054,6 +2054,17 @@ async def on_ready():
                     bot.add_view(RenkView(guild.id, rol_idleri), message_id=mesaj_id)
         bot._renk_panelleri_registered = True
 
+    if not getattr(bot, "_anime_panelleri_registered", False):
+        for guild in bot.guilds:
+            rol_idleri = [rol_id for rol_id in anime_rollari_al(guild.id) if guild.get_role(rol_id)]
+            if not rol_idleri:
+                continue
+            for kayit in anime_panel_mesajlari_al(guild.id):
+                mesaj_id = kayit.get("message_id")
+                if mesaj_id:
+                    bot.add_view(AnimeRolViewPersistent(guild.id, rol_idleri, 0), message_id=mesaj_id)
+        bot._anime_panelleri_registered = True
+
     if mongo_aktif_mi() and not getattr(bot, "_prefix_lock_index_ok", False):
         await asyncio.to_thread(_prefix_lock_ttl_index_olustur)
         bot._prefix_lock_index_ok = True
@@ -4460,6 +4471,23 @@ def anime_rollari_kaydet(guild_id: int, rol_idleri):
     ayarlari_guncelle(_guncelle)
 
 
+def anime_panel_mesajlari_al(guild_id: int):
+    return ayarlari_yukle().get(str(guild_id), {}).get("anime_panel_mesajlari", [])
+
+
+def anime_panel_mesaji_ekle(guild_id: int, channel_id: int, message_id: int):
+    def _guncelle(ayarlar):
+        gk = str(guild_id)
+        if gk not in ayarlar:
+            ayarlar[gk] = {}
+        kayitlar = ayarlar[gk].get("anime_panel_mesajlari", [])
+        yeni = [k for k in kayitlar if k.get("message_id") != message_id]
+        yeni.append({"channel_id": channel_id, "message_id": message_id})
+        ayarlar[gk]["anime_panel_mesajlari"] = yeni[-10:]
+
+    ayarlari_guncelle(_guncelle)
+
+
 ANIME_ROL_ISIMLERI = [
     "꒰꒰ 🍥 ˊˎ Naruto ꒱", "꒰꒰ 🔥 ˊˎ Sasuke ꒱", "꒰꒰ 🌸 ˊˎ Sakura ꒱", "꒰꒰ ⚡ ˊˎ Kakashi ꒱",
     "꒰꒰ 🌙 ˊˎ Itachi ꒱", "꒰꒰ 🦊 ˊˎ Kurama ꒱", "꒰꒰ 🍖 ˊˎ Luffy ꒱", "꒰꒰ 🗡️ ˊˎ Zoro ꒱",
@@ -4572,6 +4600,100 @@ class RenkView(discord.ui.View):
     def __init__(self, guild_id: int, rol_idleri: list[int]):
         super().__init__(timeout=None)
         self.add_item(RenkSec(guild_id, rol_idleri))
+
+
+def _anime_panel_embed_olustur(guild: discord.Guild, rol_idleri: list[int], sayfa: int) -> discord.Embed:
+    roller = [guild.get_role(rol_id) for rol_id in rol_idleri]
+    roller = [rol for rol in roller if rol]
+    baslangic = sayfa * 24
+    sayfa_rolleri = roller[baslangic:baslangic + 24]
+    liste = "\n".join(f"`{baslangic + i + 1}.` {rol.mention}" for i, rol in enumerate(sayfa_rolleri))
+    embed = discord.Embed(
+        title="Anime Rol Menusu",
+        description="Asagidaki menuden istedigin kadar anime rolu secebilirsin. Rollerin birikir; istersen temizleme butonuyla hepsini tek seferde silebilirsin.",
+        color=RENKLER["rol"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Roller", value=liste or "Rol bulunamadi.", inline=False)
+    embed.set_footer(text=f"Sayfa {sayfa + 1}/{max(1, (len(roller) + 23) // 24)} • Toplam {len(roller)} anime rolu")
+    return embed
+
+
+class AnimeRolSecPersistent(discord.ui.Select):
+    def __init__(self, guild_id: int, rol_idleri: list[int], sayfa: int):
+        self.guild_id = guild_id
+        self.rol_idleri = rol_idleri
+        self.sayfa = sayfa
+        guild = bot.get_guild(guild_id)
+        roller = [guild.get_role(rol_id) for rol_id in rol_idleri] if guild else []
+        roller = [rol for rol in roller if rol]
+        baslangic = sayfa * 24
+        sayfa_rolleri = roller[baslangic:baslangic + 24]
+        secenekler = [
+            discord.SelectOption(
+                label=rol.name[:100],
+                value=str(rol.id),
+                description=f"{len(rol.members)} uye kullaniyor"[:100]
+            )
+            for rol in sayfa_rolleri
+        ]
+        super().__init__(
+            placeholder=f"Anime rol(ler)i sec • Sayfa {sayfa + 1}",
+            min_values=1,
+            max_values=max(1, len(secenekler)),
+            options=secenekler,
+            custom_id=f"anime_rol_sec_{guild_id}_{sayfa}",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        secilen_roller = [interaction.guild.get_role(int(rol_id)) for rol_id in self.values]
+        secilen_roller = [rol for rol in secilen_roller if rol]
+        if not secilen_roller:
+            await interaction.followup.send("Gecerli bir anime rolu secilmedi.", ephemeral=True)
+            return
+        for index in range(0, len(secilen_roller), 5):
+            parcali = secilen_roller[index:index + 5]
+            await interaction.user.add_roles(*parcali, reason="Anime rol paneli secimi")
+        await interaction.followup.send(
+            f"Anime rollerin eklendi: {', '.join(rol.mention for rol in secilen_roller[:10])}",
+            ephemeral=True
+        )
+
+
+class AnimeRolViewPersistent(discord.ui.View):
+    def __init__(self, guild_id: int, rol_idleri: list[int], sayfa: int = 0):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+        self.rol_idleri = rol_idleri
+        self.sayfa = sayfa
+        self.sayfa_sayisi = max(1, (len(rol_idleri) + 23) // 24)
+        self.add_item(AnimeRolSecPersistent(guild_id, rol_idleri, sayfa))
+
+    @discord.ui.button(label="Onceki", style=discord.ButtonStyle.secondary, custom_id="anime_rol_onceki")
+    async def onceki(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        yeni_sayfa = (self.sayfa - 1) % self.sayfa_sayisi
+        embed = _anime_panel_embed_olustur(interaction.guild, self.rol_idleri, yeni_sayfa)
+        await interaction.message.edit(embed=embed, view=AnimeRolViewPersistent(self.guild_id, self.rol_idleri, yeni_sayfa))
+
+    @discord.ui.button(label="Sonraki", style=discord.ButtonStyle.secondary, custom_id="anime_rol_sonraki")
+    async def sonraki(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        yeni_sayfa = (self.sayfa + 1) % self.sayfa_sayisi
+        embed = _anime_panel_embed_olustur(interaction.guild, self.rol_idleri, yeni_sayfa)
+        await interaction.message.edit(embed=embed, view=AnimeRolViewPersistent(self.guild_id, self.rol_idleri, yeni_sayfa))
+
+    @discord.ui.button(label="Tum Anime Rollerini Temizle", style=discord.ButtonStyle.danger, custom_id="anime_rol_temizle")
+    async def temizle(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        roller = [interaction.guild.get_role(rol_id) for rol_id in self.rol_idleri]
+        roller = [rol for rol in roller if rol and rol in interaction.user.roles]
+        if roller:
+            for index in range(0, len(roller), 5):
+                parcali = roller[index:index + 5]
+                await interaction.user.remove_roles(*parcali, reason="Anime rol paneli temizleme")
+        await interaction.followup.send("Uzerindeki tum anime rolleri temizlendi.", ephemeral=True)
 
 
 @bot.command(name="renkekle", aliases=["renk-ekle"])
@@ -7576,3 +7698,23 @@ async def yardim_marpel_stili(ctx):
 
     view = HelpView()
     await ctx.send(embed=ana_embed(), view=view)
+
+
+try:
+    bot.remove_command("animerolpanel")
+except Exception:
+    pass
+
+
+@bot.command(name="animerolpanel", aliases=["anime-rol-panel"])
+@commands.has_permissions(manage_roles=True)
+async def anime_rol_panel_kalici(ctx):
+    rol_idleri = [rol_id for rol_id in anime_rollari_al(ctx.guild.id) if ctx.guild.get_role(rol_id)]
+    if not rol_idleri:
+        await ctx.send(embed=kullanim_embedi("Once `.animerollerikur` komutunu kullanarak anime rollerini kurmalisin."))
+        return
+    mesaj = await ctx.send(
+        embed=_anime_panel_embed_olustur(ctx.guild, rol_idleri, 0),
+        view=AnimeRolViewPersistent(ctx.guild.id, rol_idleri, 0)
+    )
+    anime_panel_mesaji_ekle(ctx.guild.id, ctx.channel.id, mesaj.id)
