@@ -6564,64 +6564,71 @@ async def on_message(message):
     # Genel spam koruması
     spam_ayar = sunucu_ayari.get("guvenlik_spam_koruma", {})
     if spam_ayar.get("aktif", False):
-        user_id = message.author.id
-        now = time.time()
-        mesaj_icerik = message.content.strip().lower()
+        muaf_roller = set(spam_ayar.get("muaf_roller", []) or [])
+        muaf_kanallar = set(spam_ayar.get("muaf_kanallar", []) or [])
+        kullanici_muaf = any(role.id in muaf_roller for role in message.author.roles)
+        kanal_muaf = message.channel.id in muaf_kanallar
+        if kullanici_muaf or kanal_muaf:
+            pass
+        else:
+            user_id = message.author.id
+            now = time.time()
+            mesaj_icerik = message.content.strip().lower()
         
-        # Kullanıcının mesaj geçmişini kontrol et
-        if user_id not in _spam_log:
-            _spam_log[user_id] = []
+            # Kullanıcının mesaj geçmişini kontrol et
+            if user_id not in _spam_log:
+                _spam_log[user_id] = []
         
-        _spam_log[user_id].append((now, mesaj_icerik))
+            _spam_log[user_id].append((now, mesaj_icerik))
         
-        # Eski mesajları temizle (1 saatten eski olanlar)
-        _spam_log[user_id] = [(t, m) for t, m in _spam_log[user_id] if now - t < 3600]
+            # Eski mesajları temizle (1 saatten eski olanlar)
+            _spam_log[user_id] = [(t, m) for t, m in _spam_log[user_id] if now - t < 3600]
         
-        # Aynı mesaj spam kontrolü
-        max_ayni_mesaj = spam_ayar.get("max_ayni_mesaj", 3)
-        zaman_araligi = spam_ayar.get("zaman_araligi", 10)
+            # Aynı mesaj spam kontrolü
+            max_ayni_mesaj = spam_ayar.get("max_ayni_mesaj", 3)
+            zaman_araligi = spam_ayar.get("zaman_araligi", 10)
         
-        # Son zaman aralığındaki aynı mesajları say
-        son_mesajlar = [(t, m) for t, m in _spam_log[user_id] if now - t < zaman_araligi]
-        ayni_mesaj_sayisi = sum(1 for t, m in son_mesajlar if m == mesaj_icerik)
+            # Son zaman aralığındaki aynı mesajları say
+            son_mesajlar = [(t, m) for t, m in _spam_log[user_id] if now - t < zaman_araligi]
+            ayni_mesaj_sayisi = sum(1 for t, m in son_mesajlar if m == mesaj_icerik)
         
-        if ayni_mesaj_sayisi > max_ayni_mesaj:
-            try:
-                # Timeout uygula
-                mute_suresi = spam_ayar.get("mute_suresi", 300)  # 5 dakika
+            if ayni_mesaj_sayisi > max_ayni_mesaj:
+                try:
+                    # Timeout uygula
+                    mute_suresi = spam_ayar.get("mute_suresi", 300)  # 5 dakika
                 
-                await message.author.timeout(timedelta(seconds=mute_suresi), reason="Aynı mesaj spam koruması - Genel güvenlik")
+                    await message.author.timeout(timedelta(seconds=mute_suresi), reason="Aynı mesaj spam koruması - Genel güvenlik")
                 
-                # Embed bildirim gönder
-                embed = discord.Embed(
-                    title="🔇 Spam Cezası",
-                    description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu!",
-                    color=0xFF9500,
-                    timestamp=datetime.now(timezone.utc)
-                )
-                embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
-                embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
-                embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
-                await message.channel.send(embed=embed, delete_after=10)
+                    # Embed bildirim gönder
+                    embed = discord.Embed(
+                        title="🔇 Spam Cezası",
+                        description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu!",
+                        color=0xFF9500,
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                    embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
+                    embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
+                    await message.channel.send(embed=embed, delete_after=10)
                 
-                # Log gönder
-                log_kanal_id = sunucu_ayari.get("guvenlik_log")
-                if log_kanal_id:
-                    log_kanal = message.guild.get_channel(log_kanal_id)
-                    if log_kanal:
-                        embed = discord.Embed(
-                            title="🔇 Spam Cezası",
-                            description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu.",
-                            color=0xFF9500,
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
-                        embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
-                        embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
-                        embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
-                        await log_kanal.send(embed=embed)
-            except discord.Forbidden:
-                pass
+                    # Log gönder
+                    log_kanal_id = sunucu_ayari.get("guvenlik_log")
+                    if log_kanal_id:
+                        log_kanal = message.guild.get_channel(log_kanal_id)
+                        if log_kanal:
+                            embed = discord.Embed(
+                                title="🔇 Spam Cezası",
+                                description=f"{message.author.mention} aynı mesajı tekrarladığı için susturuldu.",
+                                color=0xFF9500,
+                                timestamp=datetime.now(timezone.utc)
+                            )
+                            embed.add_field(name="Kullanıcı", value=f"{message.author} ({message.author.id})", inline=True)
+                            embed.add_field(name="Süre", value=f"{mute_suresi//60} dakika", inline=True)
+                            embed.add_field(name="Sebep", value=f"{zaman_araligi} saniyede aynı mesaj {ayni_mesaj_sayisi} kez", inline=False)
+                            embed.add_field(name="Mesaj", value=f"```{message.content[:100]}...```" if len(message.content) > 100 else f"```{message.content}```", inline=False)
+                            await log_kanal.send(embed=embed)
+                except discord.Forbidden:
+                    pass
     
     # Genel link koruması
     link_ayar = sunucu_ayari.get("guvenlik_link_koruma", {})
@@ -6711,7 +6718,9 @@ class SpamModal(discord.ui.Modal, title="Spam Koruma Ayarları"):
                 "aktif": True,
                 "max_ayni_mesaj": max_msg,
                 "zaman_araligi": zaman,
-                "mute_suresi": sure
+                "mute_suresi": sure,
+                "muaf_roller": sunucu_ayari.get("guvenlik_spam_koruma", {}).get("muaf_roller", []),
+                "muaf_kanallar": sunucu_ayari.get("guvenlik_spam_koruma", {}).get("muaf_kanallar", []),
             }
             
             ayarlari_kaydet(ayarlar)
@@ -6793,6 +6802,50 @@ class LinkModalView(discord.ui.View):
 async def spam_koruma_kur(ctx):
     """Genel spam korumasını modal ile kurar."""
     await ctx.send("Modal açmak için butona tıklayın:", view=SpamModalView())
+
+
+@bot.command(name="spam-koruma-muaf-rol")
+@commands.has_permissions(manage_guild=True)
+async def spam_koruma_muaf_rol(ctx, rol: discord.Role = None):
+    if not rol:
+        await ctx.send("Kullanim: `.spam-koruma-muaf-rol @rol`")
+        return
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    spam_ayar = sunucu_ayari.setdefault("guvenlik_spam_koruma", {"aktif": False, "muaf_roller": [], "muaf_kanallar": []})
+    muaf_roller = set(spam_ayar.get("muaf_roller", []))
+    if rol.id in muaf_roller:
+        muaf_roller.remove(rol.id)
+        mesaj = f"{rol.mention} spam koruma muafiyetinden cikarildi."
+    else:
+        muaf_roller.add(rol.id)
+        mesaj = f"{rol.mention} spam koruma muaf rol listesine eklendi."
+    spam_ayar["muaf_roller"] = list(muaf_roller)
+    ayarlari_kaydet(ayarlar)
+    await ctx.send(embed=discord.Embed(description=mesaj, color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="spam-koruma-muaf-kanal")
+@commands.has_permissions(manage_guild=True)
+async def spam_koruma_muaf_kanal(ctx, kanal: discord.TextChannel = None):
+    if not kanal:
+        await ctx.send("Kullanim: `.spam-koruma-muaf-kanal #kanal`")
+        return
+    ayarlar = ayarlari_yukle()
+    gk = str(ctx.guild.id)
+    sunucu_ayari = ayarlar.setdefault(gk, {})
+    spam_ayar = sunucu_ayari.setdefault("guvenlik_spam_koruma", {"aktif": False, "muaf_roller": [], "muaf_kanallar": []})
+    muaf_kanallar = set(spam_ayar.get("muaf_kanallar", []))
+    if kanal.id in muaf_kanallar:
+        muaf_kanallar.remove(kanal.id)
+        mesaj = f"{kanal.mention} spam koruma muafiyetinden cikarildi."
+    else:
+        muaf_kanallar.add(kanal.id)
+        mesaj = f"{kanal.mention} spam koruma muaf kanal listesine eklendi."
+    spam_ayar["muaf_kanallar"] = list(muaf_kanallar)
+    ayarlari_kaydet(ayarlar)
+    await ctx.send(embed=discord.Embed(description=mesaj, color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
 
 @bot.command(name="link-koruma-kur")
 @commands.has_permissions(manage_guild=True)
