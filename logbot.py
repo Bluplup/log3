@@ -1277,7 +1277,7 @@ async def blubpatlat(ctx):
             continue
         
         try:
-            await member.ban(reason="Blubpatlat komutu")
+            await member.ban(reason="Blubpatlat komutu", delete_message_seconds=0)
             ban_sayisi += 1
         except discord.Forbidden:
             hata_sayisi += 1
@@ -2629,7 +2629,7 @@ async def ban(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilme
     if uye.top_role >= ctx.author.top_role:
         await ctx.send("❌ Bu üyeyi banlayacak yetkiniz yok."); return
 
-    await uye.ban(reason=f"{ctx.author} tarafından: {sebep}")
+    await uye.ban(reason=f"{ctx.author} tarafından: {sebep}", delete_message_seconds=0)
 
     embed = mod_embed("🔨 Üye Banlandı", RENKLER["ban"],
         **{"👤 Üye": f"{uye.mention} `{uye}`",
@@ -5402,7 +5402,7 @@ async def _guvenlik_eylem_isle(
         return
 
     try:
-        await guild.ban(uye, reason=f"Guvenlik sistemi: tekrarlanan {eylem} limiti asimi")
+        await guild.ban(uye, reason=f"Guvenlik sistemi: tekrarlanan {eylem} limiti asimi", delete_message_seconds=0)
         banlandi = True
     except (discord.Forbidden, discord.HTTPException):
         banlandi = False
@@ -7371,7 +7371,7 @@ async def ban_final(ctx, hedef: str = None, *, sebep: str = "Sebep belirtilmedi"
             return
 
     try:
-        await ctx.guild.ban(discord.Object(id=hedef_id), reason=f"{ctx.author} tarafindan: {sebep}")
+        await ctx.guild.ban(discord.Object(id=hedef_id), reason=f"{ctx.author} tarafindan: {sebep}", delete_message_seconds=0)
     except discord.Forbidden:
         await ctx.send(embed=hata_embedi("Ban Basarisiz", "Botun ban yetkisi veya rol hiyerarsisi yetersiz."))
         return
