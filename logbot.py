@@ -5332,7 +5332,6 @@ async def _guvenlik_eylem_isle(
 
         baslangic_str = eylem_durum.get("baslangic")
         sayi = int(eylem_durum.get("sayi", 0) or 0)
-        uyari_verildi = bool(eylem_durum.get("uyari_verildi", False))
 
         if baslangic_str:
             try:
@@ -5345,17 +5344,14 @@ async def _guvenlik_eylem_isle(
         if (simdi - baslangic).total_seconds() > pencere:
             baslangic = simdi
             sayi = 0
-            uyari_verildi = False
 
         sayi += 1
         uye_durum[eylem] = {
             "baslangic": baslangic.isoformat(),
             "sayi": sayi,
-            "uyari_verildi": uyari_verildi,
         }
         return {
             "sayi": sayi,
-            "uyari_verildi": uyari_verildi,
             "baslangic": baslangic.isoformat(),
         }
 
@@ -5363,7 +5359,7 @@ async def _guvenlik_eylem_isle(
     sayi = sonuc["sayi"]
     uyari_verildi = sonuc["uyari_verildi"]
 
-    if sayi <= limit:
+    if sayi < limit:
         return
 
     if not uyari_verildi:
@@ -5381,7 +5377,7 @@ async def _guvenlik_eylem_isle(
             description=(
                 f"{sorumlu.mention} kisa surede cok fazla `{eylem}` eylemi yapti.\n"
                 f"**Son hedef:** {hedef}\n"
-                f"**Durum:** Bir sonraki ihlalde banlanacak."
+                f"**Durum:** Bir sonraki ihlalde jaile atilacak."
             ),
             color=RENKLER["mute"],
             timestamp=simdi,
@@ -5401,18 +5397,19 @@ async def _guvenlik_eylem_isle(
     if uye is None or guild.owner_id == uye.id:
         return
 
-    try:
-        await guild.ban(uye, reason=f"Guvenlik sistemi: tekrarlanan {eylem} limiti asimi", delete_message_seconds=0)
-        banlandi = True
-    except (discord.Forbidden, discord.HTTPException):
-        banlandi = False
+    jail_basarili, jail_sonuc = await _jail_uygula_dahili(
+        guild,
+        uye,
+        sebep=f"Guvenlik sistemi: tekrarlanan {eylem} limiti asimi",
+        uygulayan="Guvenlik sistemi"
+    )
 
     embed = discord.Embed(
         title="Güvenlik Sistemi Tetiklendi",
         description=(
-            f"{sorumlu.mention} tekrar `{eylem}` limiti asti.\n"
+            f"{sorumlu.mention} tekrar `{eylem}` limitini asti.\n"
             f"**Son hedef:** {hedef}\n"
-            f"**Sonuc:** {'Kullanici banlandi.' if banlandi else 'Ban denendi ama basarisiz oldu.'}"
+            f"**Sonuc:** {jail_sonuc}"
         ),
         color=RENKLER["hata"],
         timestamp=simdi,
@@ -6098,7 +6095,7 @@ class GuvenlikKurModal(discord.ui.Modal, title="Guvenlik Sistemi"):
         embed.add_field(name="Rol Acma", value=str(rol_ac_limit), inline=True)
         embed.add_field(name="Rol Silme", value=str(rol_sil_limit), inline=True)
         embed.add_field(name="Kick", value=str(kick_limit), inline=True)
-        embed.set_footer(text="Ilk asimda uyari, bir sonraki ihlalde ban")
+        embed.set_footer(text="Limit sayisina ulasildiginda direkt jail uygulanir")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
@@ -6174,7 +6171,7 @@ async def guvenlik_kur_modal(ctx):
         title="Güvenlik Sistemi Kurulumu",
         description=(
             "Asagidaki butona tikla ve limitleri modal uzerinden ayarla.\n"
-            "Limit asilinca uyari verilir, bir sonraki ayni ihlalde kullanici banlanir."
+            "Yazdigin limit sayisina ulasilinca kullanici direkt jaile atilir."
         ),
         color=RENKLER["bilgi"]
     )
@@ -7111,6 +7108,42 @@ def _jail_yetkili_mi(uye: discord.Member, guild_id: int) -> bool:
     return bool(yetki_rol_id and any(rol.id == yetki_rol_id for rol in uye.roles))
 
 
+async def _jail_uygula_dahili(guild: discord.Guild, uye: discord.Member, sebep: str, uygulayan: str = "Sistem"):
+    ayar = _jail_ayar_al(guild.id)
+    jail_rol = guild.get_role(ayar.get("jail_rol_id")) if ayar.get("jail_rol_id") else None
+    jail_kanal = guild.get_channel(ayar.get("kanal_id")) if ayar.get("kanal_id") else None
+
+    if not ayar.get("aktif") or jail_rol is None or not isinstance(jail_kanal, discord.TextChannel):
+        return False, "Jail sistemi kurulu degil."
+
+    eski_roller = [rol.id for rol in uye.roles if rol != guild.default_role and rol != jail_rol]
+    kayitlar = ayar.get("kayitlar", {})
+    kayitlar[str(uye.id)] = {
+        "rol_ids": eski_roller,
+        "sebep": sebep,
+        "zaman": datetime.now(timezone.utc).isoformat()
+    }
+    ayar["kayitlar"] = kayitlar
+    _jail_ayar_kaydet(guild.id, ayar)
+
+    for kanal in guild.channels:
+        try:
+            await kanal.set_permissions(uye, view_channel=False, send_messages=False, reason="Jail sistemi")
+        except Exception:
+            pass
+    try:
+        await jail_kanal.set_permissions(uye, view_channel=True, send_messages=True, read_message_history=True, reason="Jail sistemi")
+    except Exception:
+        pass
+
+    try:
+        await uye.edit(roles=[jail_rol], reason=f"{uygulayan} tarafindan jail: {sebep}")
+    except (discord.Forbidden, discord.HTTPException):
+        return False, "Rol hiyerarsisi veya yetki nedeniyle jail uygulanamadi."
+
+    return True, "Kullanici jaile atildi."
+
+
 @bot.command(name="jailkur")
 @commands.has_permissions(manage_guild=True)
 async def jail_kur(ctx):
@@ -7146,21 +7179,10 @@ async def jail_uygula(ctx, uye: discord.Member = None, *, sebep: str = "Sebep be
     if not ayar.get("aktif") or jail_rol is None or not isinstance(jail_kanal, discord.TextChannel):
         await ctx.send(embed=hata_embedi("Jail Sistemi Hazir Degil", "Once `.jailkur` ile sistemi kurmalisin."))
         return
-    eski_roller = [rol.id for rol in uye.roles if rol != ctx.guild.default_role and rol != jail_rol]
-    kayitlar = ayar.get("kayitlar", {})
-    kayitlar[str(uye.id)] = {"rol_ids": eski_roller, "sebep": sebep, "zaman": datetime.now(timezone.utc).isoformat()}
-    ayar["kayitlar"] = kayitlar
-    _jail_ayar_kaydet(ctx.guild.id, ayar)
-    for kanal in ctx.guild.channels:
-        try:
-            await kanal.set_permissions(uye, view_channel=False, send_messages=False, reason="Jail sistemi")
-        except Exception:
-            pass
-    try:
-        await jail_kanal.set_permissions(uye, view_channel=True, send_messages=True, read_message_history=True, reason="Jail sistemi")
-    except Exception:
-        pass
-    await uye.edit(roles=[jail_rol], reason=f"{ctx.author} tarafindan jail: {sebep}")
+    basarili, sonuc_mesaji = await _jail_uygula_dahili(ctx.guild, uye, sebep, uygulayan=str(ctx.author))
+    if not basarili:
+        await ctx.send(embed=hata_embedi("Jail Basarisiz", sonuc_mesaji))
+        return
     await ctx.send(embed=discord.Embed(title="Uye Jailleendi", description=f"{uye.mention} jailleendi.\nSebep: {sebep}", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
 
 
@@ -7718,3 +7740,92 @@ async def anime_rol_panel_kalici(ctx):
         view=AnimeRolViewPersistent(ctx.guild.id, rol_idleri, 0)
     )
     anime_panel_mesaji_ekle(ctx.guild.id, ctx.channel.id, mesaj.id)
+
+
+async def _guvenlik_eylem_isle(
+    guild: discord.Guild,
+    sorumlu: discord.Member | discord.User | None,
+    eylem: str,
+    hedef: str,
+    limit: int,
+):
+    if sorumlu is None or getattr(sorumlu, "bot", False):
+        return
+    if guild.owner_id == sorumlu.id:
+        return
+
+    ayar = _guvenlik_ayar_al(guild.id)
+    if not ayar.get("aktif"):
+        return
+    if await _guvenlik_sorumlu_whitelistte_mi(guild, sorumlu, ayar):
+        return
+
+    simdi = datetime.now(timezone.utc)
+    pencere = max(10, int(ayar.get("sure_saniye", 60)))
+
+    def _guncelle(ayarlar):
+        gk = str(guild.id)
+        if gk not in ayarlar:
+            ayarlar[gk] = {}
+        guvenlik = ayarlar[gk].setdefault("guvenlik", {})
+        durumlar = guvenlik.setdefault("durumlar", {})
+        uye_durum = durumlar.setdefault(str(sorumlu.id), {})
+        eylem_durum = uye_durum.get(eylem, {})
+
+        baslangic_str = eylem_durum.get("baslangic")
+        sayi = int(eylem_durum.get("sayi", 0) or 0)
+
+        if baslangic_str:
+            try:
+                baslangic = utc_datetime_from_iso(baslangic_str)
+            except Exception:
+                baslangic = simdi
+        else:
+            baslangic = simdi
+
+        if (simdi - baslangic).total_seconds() > pencere:
+            baslangic = simdi
+            sayi = 0
+
+        sayi += 1
+        uye_durum[eylem] = {
+            "baslangic": baslangic.isoformat(),
+            "sayi": sayi,
+        }
+        return {"sayi": sayi}
+
+    sonuc = ayarlari_guncelle(_guncelle)
+    sayi = int((sonuc or {}).get("sayi", 0) or 0)
+    if sayi < limit:
+        return
+
+    uye = guild.get_member(sorumlu.id)
+    if uye is None:
+        try:
+            uye = await guild.fetch_member(sorumlu.id)
+        except discord.HTTPException:
+            uye = None
+    if uye is None or guild.owner_id == uye.id:
+        return
+
+    jail_basarili, jail_sonuc = await _jail_uygula_dahili(
+        guild,
+        uye,
+        sebep=f"Guvenlik sistemi: tekrarlanan {eylem} limiti asimi",
+        uygulayan="Guvenlik sistemi"
+    )
+
+    embed = discord.Embed(
+        title="Guvenlik Sistemi Tetiklendi",
+        description=(
+            f"{sorumlu.mention} `{eylem}` limiti olan **{limit}** sayisina ulasti.\n"
+            f"**Son hedef:** {hedef}\n"
+            f"**Sonuc:** {jail_sonuc}"
+        ),
+        color=RENKLER["hata"] if jail_basarili else RENKLER["mute"],
+        timestamp=simdi,
+    )
+    embed.add_field(name="Pencere", value=f"{pencere} saniye", inline=True)
+    embed.add_field(name="Mevcut", value=str(sayi), inline=True)
+    embed.set_footer(text="Sunucu Guvenlik Sistemi")
+    await _guvenlik_log_gonder(guild, ayar, embed)
