@@ -224,7 +224,7 @@ def _prefix_dagitik_kilit_istiyor_mu() -> bool:
     v = os.environ.get("PREFIX_CMD_LOCK", os.environ.get("PREFIX_CMD_DEDUP", "")).strip().lower()
     if v in ("1", "true", "yes", "evet", "on", "acik", "ac"):
         return True
-    return supabase_aktif_mi() or _upstash_kilit_env_var_mi()
+    return False
 
 
 async def _prefix_mesaj_kilidi_dene(channel_id: int, message_id: int) -> bool:
@@ -7096,16 +7096,47 @@ class JailKurModal(discord.ui.Modal, title="Jail Sistemi Kurulumu"):
         jail_rol = discord.utils.get(interaction.guild.roles, name="JAIL")
         if jail_rol is None:
             jail_rol = await interaction.guild.create_role(name="JAIL", colour=discord.Color.from_rgb(120, 72, 32), reason="Jail sistemi icin otomatik olusturuldu")
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await _jail_altyapi_hazirla(interaction.guild, jail_rol, kanal)
         ayar = _jail_ayar_al(interaction.guild.id)
         ayar.update({"aktif": True, "kanal_id": kanal.id, "jail_rol_id": jail_rol.id, "jail_yetki_rol_id": yetki_rol.id, "kayitlar": ayar.get("kayitlar", {})})
         _jail_ayar_kaydet(interaction.guild.id, ayar)
-        await interaction.response.send_message(f"Jail sistemi kaydedildi. Kanal: {kanal.mention} • Jail Rol: {jail_rol.mention}", ephemeral=True)
+        await interaction.followup.send(f"Jail sistemi kaydedildi. Kanal: {kanal.mention} • Jail Rol: {jail_rol.mention}", ephemeral=True)
 
 
 def _jail_yetkili_mi(uye: discord.Member, guild_id: int) -> bool:
     ayar = _jail_ayar_al(guild_id)
     yetki_rol_id = ayar.get("jail_yetki_rol_id")
     return bool(yetki_rol_id and any(rol.id == yetki_rol_id for rol in uye.roles))
+
+
+async def _jail_altyapi_hazirla(guild: discord.Guild, jail_rol: discord.Role, jail_kanal: discord.TextChannel):
+    for kanal in guild.channels:
+        try:
+            if kanal.id == jail_kanal.id:
+                await kanal.set_permissions(
+                    jail_rol,
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    attach_files=True,
+                    reason="Jail sistemi kurulumu"
+                )
+            else:
+                kwargs = {
+                    "view_channel": False,
+                    "send_messages": False,
+                    "add_reactions": False,
+                    "attach_files": False,
+                    "read_message_history": False,
+                    "reason": "Jail sistemi kurulumu",
+                }
+                if isinstance(kanal, discord.VoiceChannel):
+                    kwargs["connect"] = False
+                    kwargs["speak"] = False
+                await kanal.set_permissions(jail_rol, **kwargs)
+        except Exception:
+            pass
 
 
 async def _jail_uygula_dahili(guild: discord.Guild, uye: discord.Member, sebep: str, uygulayan: str = "Sistem"):
@@ -7125,16 +7156,6 @@ async def _jail_uygula_dahili(guild: discord.Guild, uye: discord.Member, sebep: 
     }
     ayar["kayitlar"] = kayitlar
     _jail_ayar_kaydet(guild.id, ayar)
-
-    for kanal in guild.channels:
-        try:
-            await kanal.set_permissions(uye, view_channel=False, send_messages=False, reason="Jail sistemi")
-        except Exception:
-            pass
-    try:
-        await jail_kanal.set_permissions(uye, view_channel=True, send_messages=True, read_message_history=True, reason="Jail sistemi")
-    except Exception:
-        pass
 
     try:
         await uye.edit(roles=[jail_rol], reason=f"{uygulayan} tarafindan jail: {sebep}")
@@ -7202,11 +7223,6 @@ async def unjail_uygula(ctx, uye: discord.Member = None):
     roller = [ctx.guild.get_role(rid) for rid in kayit.get("rol_ids", [])]
     roller = [rol for rol in roller if rol]
     await uye.edit(roles=roller, reason=f"{ctx.author} tarafindan jail kaldirildi")
-    for kanal in ctx.guild.channels:
-        try:
-            await kanal.set_permissions(uye, overwrite=None, reason="Jail kaldirildi")
-        except Exception:
-            pass
     ayar["kayitlar"].pop(str(uye.id), None)
     _jail_ayar_kaydet(ctx.guild.id, ayar)
     await ctx.send(embed=discord.Embed(title="Jail Kaldirildi", description=f"{uye.mention} icin onceki roller geri verildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
