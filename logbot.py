@@ -4623,7 +4623,6 @@ class AnimeRolSecPersistent(discord.ui.Select):
     def __init__(self, guild_id: int, rol_idleri: list[int], sayfa: int):
         self.guild_id = guild_id
         self.rol_idleri = rol_idleri
-        self.sayfa = sayfa
         guild = bot.get_guild(guild_id)
         roller = [guild.get_role(rol_id) for rol_id in rol_idleri] if guild else []
         roller = [rol for rol in roller if rol]
@@ -4642,7 +4641,7 @@ class AnimeRolSecPersistent(discord.ui.Select):
             min_values=1,
             max_values=max(1, len(secenekler)),
             options=secenekler,
-            custom_id=f"anime_rol_sec_{guild_id}_{sayfa}",
+            custom_id=f"anime_rol_sec_{guild_id}",
         )
 
     async def callback(self, interaction: discord.Interaction):
