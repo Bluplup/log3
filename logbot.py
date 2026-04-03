@@ -5356,7 +5356,7 @@ async def _guvenlik_eylem_isle(
 
     sonuc = ayarlari_guncelle(_guncelle)
     sayi = sonuc["sayi"]
-    uyari_verildi = sonuc["uyari_verildi"]
+    uyari_verildi = True
 
     if sayi < limit:
         return
@@ -5584,6 +5584,86 @@ async def butun_sistemleri_kaldir(ctx):
         color=RENKLER["hata"],
         timestamp=datetime.now(timezone.utc)
     ))
+
+
+def _turkce_sure_parcala(metin: str):
+    if not metin:
+        return 0, ""
+    eslesmeler = list(re.finditer(r"(\d+)\s*(g[uü]n|saat|dakika|saniye|sn|dk|g|h|m|s)\b", metin.lower()))
+    if not eslesmeler:
+        return 0, metin.strip()
+
+    birimler = {
+        "g": 86400, "gun": 86400, "gün": 86400,
+        "h": 3600, "saat": 3600,
+        "m": 60, "dk": 60, "dakika": 60,
+        "s": 1, "sn": 1, "saniye": 1,
+    }
+    toplam = 0
+    for eslesme in eslesmeler:
+        adet = int(eslesme.group(1))
+        birim = eslesme.group(2)
+        toplam += adet * birimler.get(birim, 0)
+
+    kalan = re.sub(r"(\d+)\s*(g[uü]n|saat|dakika|saniye|sn|dk|g|h|m|s)\b", "", metin, flags=re.IGNORECASE).strip()
+    return toplam, kalan
+
+
+async def _mute_hedef_bul(ctx, uye):
+    if uye is not None:
+        return uye
+    if ctx.message.reference and ctx.message.reference.resolved:
+        kaynak = ctx.message.reference.resolved
+        if isinstance(kaynak, discord.Message) and isinstance(kaynak.author, discord.Member):
+            return kaynak.author
+    return None
+
+
+try:
+    bot.remove_command("mute")
+except Exception:
+    pass
+
+
+@bot.command(name="mute")
+@commands.has_permissions(moderate_members=True)
+async def mute_yeni(ctx, uye: discord.Member = None, *, arguman: str = ""):
+    hedef = await _mute_hedef_bul(ctx, uye)
+    if hedef is None:
+        await ctx.send(embed=kullanim_embedi("`.mute @uye 10 dakika sebep`\nveya bir mesaja yanit verip `.mute 10 dakika sebep`"))
+        return
+    if hedef == ctx.author:
+        await ctx.send(embed=hata_embedi("Gecersiz Islem", "Kendini susturamazsin."))
+        return
+    if hedef.top_role >= ctx.author.top_role:
+        await ctx.send(embed=hata_embedi("Yetki Hatasi", "Bu uyeyi susturacak yetkin yok."))
+        return
+
+    saniye, kalan_sebep = _turkce_sure_parcala(arguman.strip())
+    if saniye <= 0:
+        saniye = 2419200
+        sure_goster = "28 gun"
+        sebep = arguman.strip() if arguman.strip() else "Sebep belirtilmedi"
+    else:
+        sure_goster = arguman.strip()
+        sebep = kalan_sebep if kalan_sebep else "Sebep belirtilmedi"
+
+    if saniye > 2419200:
+        await ctx.send(embed=hata_embedi("Sure Hatasi", "Maksimum mute suresi 28 gundur."))
+        return
+
+    bitis = datetime.now(timezone.utc) + timedelta(seconds=saniye)
+    await hedef.timeout(timedelta(seconds=saniye), reason=f"{ctx.author}: {sebep}")
+
+    embed = mod_embed("Uye Susturuldu", RENKLER["mute"], **{
+        "Uye": f"{hedef.mention} `{hedef}`",
+        "Sure": sure_goster,
+        "Bitis": bitis.strftime("%d.%m.%Y %H:%M UTC"),
+        "Sebep": sebep,
+        "Yetkili": ctx.author.mention
+    })
+    await ctx.send(embed=embed)
+    await log_gonder(ctx.guild, "mute_log", embed)
 
 
 def _xp_hedef(level: int) -> int:
