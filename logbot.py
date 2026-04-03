@@ -5419,6 +5419,173 @@ async def _guvenlik_eylem_isle(
     await _guvenlik_log_gonder(guild, ayar, embed)
 
 
+class TicketControlView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Kapat", style=discord.ButtonStyle.danger, custom_id="ticket_kapat")
+    async def kapat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not channel.name.startswith("ticket-"):
+            await interaction.response.send_message("Bu buton sadece ticket kanalinda kullanilabilir.", ephemeral=True)
+            return
+
+        ayar = ticket_ayar_al(interaction.guild_id)
+        log_id = ayar.get("log")
+        await _ticket_kapat_logu_ve_transkript(channel, interaction.user, log_id)
+        await interaction.response.send_message("Ticket kapatiliyor...", ephemeral=True)
+        await channel.delete(reason=f"{interaction.user} tarafindan kapatildi")
+
+    @discord.ui.button(label="Uye Ekle", style=discord.ButtonStyle.secondary, custom_id="ticket_uyeekle")
+    async def uye_ekle(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not channel.name.startswith("ticket-"):
+            await interaction.response.send_message("Bu buton sadece ticket kanalinda kullanilabilir.", ephemeral=True)
+            return
+
+        ayar = ticket_ayar_al(interaction.guild_id)
+        destek_rolleri = [interaction.guild.get_role(rid) for rid in ayar.get("rol_ids", [])]
+        destek_rolleri = [rol for rol in destek_rolleri if rol]
+        if destek_rolleri and not any(rol in interaction.user.roles for rol in destek_rolleri) and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Bu islem icin destek rolune veya yonetici yetkisine sahip olmalisin.", ephemeral=True)
+            return
+
+        await interaction.response.send_message("Eklemek istedigin kullaniciyi bu kanalda etiketle: @kullanici", ephemeral=True)
+
+        def check(message: discord.Message):
+            return message.author == interaction.user and message.channel == channel and message.mentions
+
+        try:
+            yanit = await bot.wait_for("message", check=check, timeout=30)
+            for uye in yanit.mentions:
+                await channel.set_permissions(uye, read_messages=True, send_messages=True)
+            await channel.send(f"{' '.join(u.mention for u in yanit.mentions)} tickete eklendi.")
+            await yanit.delete()
+        except asyncio.TimeoutError:
+            await channel.send("Uye ekleme isteginin suresi doldu.", delete_after=5)
+
+    @discord.ui.button(label="Talep Al", style=discord.ButtonStyle.success, custom_id="ticket_talep")
+    async def talep_al(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel) or not channel.name.startswith("ticket-"):
+            await interaction.response.send_message("Bu buton sadece ticket kanalinda kullanilabilir.", ephemeral=True)
+            return
+
+        ayar = ticket_ayar_al(interaction.guild_id)
+        destek_rolleri = [interaction.guild.get_role(rid) for rid in ayar.get("rol_ids", [])]
+        destek_rolleri = [rol for rol in destek_rolleri if rol]
+        if destek_rolleri and not any(rol in interaction.user.roles for rol in destek_rolleri) and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Bu islem icin destek rolu gerekli.", ephemeral=True)
+            return
+
+        yeni_topic = channel.topic or ""
+        if " | Talep:" in yeni_topic:
+            yeni_topic = yeni_topic.split(" | Talep:")[0]
+        await channel.edit(topic=f"{yeni_topic} | Talep: {interaction.user}")
+        await interaction.response.send_message(f"Ticket {interaction.user.mention} tarafindan talep alindi.")
+
+
+class TicketOpenView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Ticket Ac", style=discord.ButtonStyle.primary, custom_id="global_ticket_ac")
+    async def ticket_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ayar = ticket_ayar_al(interaction.guild_id)
+        kategori = interaction.guild.get_channel(ayar.get("kategori"))
+        destek_rolleri = [interaction.guild.get_role(rid) for rid in ayar.get("rol_ids", [])]
+        destek_rolleri = [rol for rol in destek_rolleri if rol]
+        log_id = ayar.get("log")
+
+        if not kategori:
+            await interaction.response.send_message("Kategori bulunamadi. `.ticketkur` ile yeniden kur.", ephemeral=True)
+            return
+
+        for kanal in kategori.text_channels:
+            if kanal.topic and str(interaction.user.id) in kanal.topic:
+                await interaction.response.send_message(f"Zaten acik bir ticketin var: {kanal.mention}", ephemeral=True)
+                return
+
+        sayi = ticket_sayaci_artir(interaction.guild_id)
+        bot_member = interaction.guild.me or interaction.guild.default_role
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            bot_member: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True),
+        }
+        for destek_rolu in destek_rolleri:
+            overwrites[destek_rolu] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+
+        ticket_kanal = await kategori.create_text_channel(
+            name=f"ticket-{sayi:04d}",
+            overwrites=overwrites,
+            topic=f"Ticket sahibi: {interaction.user} | ID: {interaction.user.id} | #{sayi}"
+        )
+
+        ac_embed = discord.Embed(
+            title=f"Ticket #{sayi:04d}",
+            description=(
+                f"Merhaba {interaction.user.mention}!\n"
+                f"Destek ekibimiz en kisa surede yardimci olacak.\n\n"
+                f"Ticketi kapatmak icin `Kapat` butonunu kullan."
+            ),
+            color=0x57F287,
+            timestamp=datetime.now(timezone.utc)
+        )
+        ac_embed.set_footer(text=f"Ticket #{sayi:04d} • {zaman_damgasi()}")
+
+        mentionlar = [interaction.user.mention] + [rol.mention for rol in destek_rolleri]
+        await ticket_kanal.send(content=" ".join(mentionlar), embed=ac_embed, view=TicketControlView())
+        await interaction.response.send_message(f"Ticketin acildi: {ticket_kanal.mention}", ephemeral=True)
+
+        if log_id:
+            log_kanali = interaction.guild.get_channel(log_id)
+            if log_kanali:
+                await log_kanali.send(embed=discord.Embed(
+                    title="Yeni Ticket Acildi",
+                    description=f"**Acan:** {interaction.user.mention}\n**Kanal:** {ticket_kanal.mention}\n**Numara:** `#{sayi:04d}`",
+                    color=RENKLER["giris"],
+                    timestamp=datetime.now(timezone.utc)
+                ))
+
+
+try:
+    bot.remove_command("ticketpanel")
+except Exception:
+    pass
+
+
+@bot.command(name="ticketpanel", aliases=["ticket-panel"])
+@commands.has_permissions(administrator=True)
+async def ticket_panel_yeni(ctx):
+    ayar = ticket_ayar_al(ctx.guild.id)
+    if not ayar.get("kategori"):
+        await ctx.send("Once `.ticketkur` ile sistemi kur.")
+        return
+
+    panel_embed = discord.Embed(
+        title="Destek Merkezi",
+        description="Yardim almak icin asagidaki butona tikla. Ekibimiz en kisa surede seninle ilgilenecek.",
+        color=0x5865F2
+    )
+    panel_embed.set_footer(text=ctx.guild.name)
+    if ctx.guild.icon:
+        panel_embed.set_thumbnail(url=ctx.guild.icon.url)
+    await ctx.send(embed=panel_embed, view=TicketOpenView())
+
+
+@bot.command(name="butunsistemlerikaldir")
+@commands.has_permissions(administrator=True)
+async def butun_sistemleri_kaldir(ctx):
+    guild_ayarlari_sil(ctx.guild.id)
+    await ctx.send(embed=discord.Embed(
+        title="Tum Sistemler Kaldirildi",
+        description="Bu sunucuya ait kayitli sistem ayarlari tamamen silindi. Gerekirse sistemleri tekrar kurabilirsin.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    ))
+
+
 def _xp_hedef(level: int) -> int:
     return 5 * (level ** 2) + (50 * level) + 100
 
