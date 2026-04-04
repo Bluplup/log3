@@ -9481,11 +9481,8 @@ for _yardim_sil in ("yardim", "yardm", "help", "komutlar"):
 
 @bot.command(name="yardim", aliases=["yardm", "help", "komutlar"], help="Renkli komut menusunu gosterir.")
 async def yardim_final_gercek(ctx):
-    try:
-        view = YardimFinalView(ctx.author.id, str(ctx.author))
-        await ctx.send(embed=view.mevcut_embed(), view=view)
-    except Exception:
-        await ctx.send(embed=_yardim_ana_embed(str(ctx.author)))
+    view = YardimFinalView(ctx.author.id, str(ctx.author))
+    await ctx.send(embed=view.mevcut_embed(), view=view)
 
 
 if __name__ == "__main__":
