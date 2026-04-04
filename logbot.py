@@ -9479,10 +9479,24 @@ for _yardim_sil in ("yardim", "yardm", "help", "komutlar"):
         pass
 
 
-@bot.command(name="yardim", aliases=["yardm", "help", "komutlar"], help="Renkli komut menusunu gosterir.")
-async def yardim_final_gercek(ctx):
+async def _yardim_gonder(ctx):
     view = YardimFinalView(ctx.author.id, str(ctx.author))
     await ctx.send(embed=view.mevcut_embed(), view=view)
+
+
+@bot.command(name="yardim", aliases=["yardm"], help="Renkli komut menusunu gosterir.")
+async def yardim_final_gercek(ctx):
+    await _yardim_gonder(ctx)
+
+
+@bot.command(name="help", help="Renkli komut menusunu gosterir.")
+async def help_final_gercek(ctx):
+    await _yardim_gonder(ctx)
+
+
+@bot.command(name="komutlar", help="Renkli komut menusunu gosterir.")
+async def komutlar_final_gercek(ctx):
+    await _yardim_gonder(ctx)
 
 
 if __name__ == "__main__":
