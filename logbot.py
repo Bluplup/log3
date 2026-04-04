@@ -9468,17 +9468,20 @@ class YardimFinalView(discord.ui.View):
         return _yardim_kategori_embed(self.aktif_kategori, veri, self.sayfa)
 
 
-for _yardim_sil in ("yardim", "yardm", "yardm", "help"):
+for _yardim_sil in ("yardim", "yardm", "help", "komutlar"):
     try:
         bot.remove_command(_yardim_sil)
     except Exception:
         pass
 
 
-@bot.command(name="yardim", aliases=["yardm", "help"], help="Renkli komut menusunu gosterir.")
+@bot.command(name="yardim", aliases=["yardm", "help", "komutlar"], help="Renkli komut menusunu gosterir.")
 async def yardim_final_gercek(ctx):
-    view = YardimFinalView(ctx.author.id, str(ctx.author))
-    await ctx.send(embed=view.mevcut_embed(), view=view)
+    try:
+        view = YardimFinalView(ctx.author.id, str(ctx.author))
+        await ctx.send(embed=view.mevcut_embed(), view=view)
+    except Exception:
+        await ctx.send(embed=_yardim_ana_embed(str(ctx.author)))
 
 
 if __name__ == "__main__":
