@@ -9500,4 +9500,122 @@ async def komutlar_final_gercek(ctx):
 
 
 if __name__ == "__main__":
+    pass
+
+
+def _help_kategori_komutlari():
+    tum = {c.name: c for c in bot.commands if not c.hidden}
+    return {
+        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "yasakli-komut"],
+        "Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "jail", "unjail", "cezagecmisi", "cezasil", "kanalkilit", "kanalac"],
+        "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "yetkiver", "yetkial", "temprol", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler"],
+        "Sistemler": ["ticketpanel", "ticketkur", "partner-kur", "partner-kapat", "partnerpuan", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "spam-koruma-durum", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "levelkur", "levelkapat"],
+        "Kullanici": ["profil", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "destekistek"],
+        "Bilgi": ["sunucupanel", "yetkilipanel", "sesistatistik", "mesajistatistik", "leaderboard", "say", "kanalbilgi", "komutbilgi", "ping"],
+    }, tum
+
+
+def _help_ana_embed(ctx):
+    kategoriler, tum = _help_kategori_komutlari()
+    embed = discord.Embed(
+        title="Komut Menusu",
+        description="Asagidaki acilir menuden bir kategori sec.",
+        color=0xF7C948,
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(
+        name="Kategoriler",
+        value="\n".join(f"**{ad}**: {sum(1 for k in komutlar if k in tum)}" for ad, komutlar in kategoriler.items()),
+        inline=True,
+    )
+    embed.add_field(
+        name="Hizli Baslangic",
+        value="`.renkpanel`\n`.ticketpanel`\n`.levelkur`\n`.gifcevap`\n`.jailkur`\n`.komutbilgi mute`",
+        inline=True,
+    )
+    embed.set_footer(text=f"{ctx.author} tarafindan acildi")
+    return embed
+
+
+def _help_kategori_embed(kategori):
+    kategoriler, tum = _help_kategori_komutlari()
+    satirlar = []
+    for ad in kategoriler.get(kategori, []):
+        komut = tum.get(ad)
+        if komut:
+            aciklama = (komut.help or "Bu komut hazir.").strip()
+            satirlar.append(f"• **.{komut.name}** - {aciklama}")
+    embed = discord.Embed(
+        title=f"{kategori} Komutlari",
+        description="\n".join(satirlar[:20]) or "Bu kategoride komut yok.",
+        color=0x4D96FF,
+        timestamp=datetime.now(timezone.utc),
+    )
+    return embed
+
+
+class BasitHelpSelect(discord.ui.Select):
+    def __init__(self, sahip_id):
+        self.sahip_id = sahip_id
+        kategoriler, tum = _help_kategori_komutlari()
+        options = [
+            discord.SelectOption(label=ad, description=f"{sum(1 for k in komutlar if k in tum)} komut", value=ad)
+            for ad, komutlar in kategoriler.items()
+        ]
+        super().__init__(placeholder="Kategori sec", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.sahip_id:
+            await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+            return
+        await interaction.response.edit_message(embed=_help_kategori_embed(self.values[0]), view=self.view)
+
+
+class BasitHelpAnaButton(discord.ui.Button):
+    def __init__(self, sahip_id, ctx):
+        self.sahip_id = sahip_id
+        self.ctx = ctx
+        super().__init__(style=discord.ButtonStyle.primary, label="Ana Menu")
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.sahip_id:
+            await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+            return
+        await interaction.response.edit_message(embed=_help_ana_embed(self.ctx), view=self.view)
+
+
+class BasitHelpView(discord.ui.View):
+    def __init__(self, ctx):
+        super().__init__(timeout=300)
+        self.add_item(BasitHelpSelect(ctx.author.id))
+        self.add_item(BasitHelpAnaButton(ctx.author.id, ctx))
+
+
+for _help_temizle in ("yardim", "yardm", "help", "komutlar"):
+    try:
+        bot.remove_command(_help_temizle)
+    except Exception:
+        pass
+
+
+async def _basit_help_gonder(ctx):
+    await ctx.send(embed=_help_ana_embed(ctx), view=BasitHelpView(ctx))
+
+
+@bot.command(name="yardim", aliases=["yardm"])
+async def yardim_basit(ctx):
+    await _basit_help_gonder(ctx)
+
+
+@bot.command(name="help")
+async def help_basit(ctx):
+    await _basit_help_gonder(ctx)
+
+
+@bot.command(name="komutlar")
+async def komutlar_basit(ctx):
+    await _basit_help_gonder(ctx)
+
+
+if __name__ == "__main__":
     bot.run(BOT_TOKEN)
