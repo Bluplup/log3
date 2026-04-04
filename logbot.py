@@ -60,7 +60,7 @@ _supabase_disabled_until = 0.0
 _supabase_fail_count = 0
 _ayar_cache_veri = None
 _ayar_cache_zaman = 0.0
-_AYAR_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "8"))
+_AYAR_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "15"))
 YEREL_SAAT_DILIMI = ZoneInfo(os.environ.get("BOT_TIMEZONE", "Europe/Istanbul"))
 
 
@@ -5584,6 +5584,232 @@ async def butun_sistemleri_kaldir(ctx):
         color=RENKLER["hata"],
         timestamp=datetime.now(timezone.utc)
     ))
+
+
+def zaman_damgasi() -> str:
+    now = datetime.now(timezone.utc)
+    return now.strftime("📅 %d.%m.%Y • ⏰ %H:%M:%S UTC")
+
+
+def kullanim_embedi(description: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="Komut Kullanimi",
+        description=description,
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.set_footer(text=zaman_damgasi())
+    return embed
+
+
+try:
+    bot.remove_command("butunsistemlerikaldir")
+except Exception:
+    pass
+
+
+@bot.command(name="spam-koruma-durum")
+@commands.has_permissions(manage_guild=True)
+async def spam_koruma_durum(ctx):
+    ayarlar = ayarlari_yukle()
+    spam_ayar = ayarlar.get(str(ctx.guild.id), {}).get("guvenlik_spam_koruma", {})
+    muaf_roller = [ctx.guild.get_role(rid) for rid in spam_ayar.get("muaf_roller", [])]
+    muaf_roller = [rol.mention for rol in muaf_roller if rol]
+    muaf_kanallar = [ctx.guild.get_channel(kid) for kid in spam_ayar.get("muaf_kanallar", [])]
+    muaf_kanallar = [kanal.mention for kanal in muaf_kanallar if kanal]
+
+    embed = discord.Embed(
+        title="🛡️ Spam Koruma Durumu",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Durum", value="Aktif" if spam_ayar.get("aktif") else "Kapali", inline=True)
+    embed.add_field(name="Maksimum Ayni Mesaj", value=str(spam_ayar.get("max_ayni_mesaj", 3)), inline=True)
+    embed.add_field(name="Zaman Araligi", value=f"{spam_ayar.get('zaman_araligi', 10)} saniye", inline=True)
+    embed.add_field(name="Mute Suresi", value=f"{spam_ayar.get('mute_suresi', 300)} saniye", inline=True)
+    embed.add_field(name="Muaf Roller", value=", ".join(muaf_roller[:10]) if muaf_roller else "Yok", inline=False)
+    embed.add_field(name="Muaf Kanallar", value=", ".join(muaf_kanallar[:10]) if muaf_kanallar else "Yok", inline=False)
+    embed.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=embed)
+
+
+class ButunSistemleriKaldirView(discord.ui.View):
+    def __init__(self, sahibi_id: int):
+        super().__init__(timeout=60)
+        self.sahibi_id = sahibi_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.sahibi_id:
+            await interaction.response.send_message("Bu onayi sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Evet, Tumunu Kaldir", style=discord.ButtonStyle.danger)
+    async def onayla(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_ayarlari_sil(interaction.guild.id)
+        embed = discord.Embed(
+            title="Tum Sistemler Kaldirildi",
+            description="Sunucuya ait kayitli sistem ayarlari tamamen silindi.",
+            color=RENKLER["hata"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+    @discord.ui.button(label="Vazgec", style=discord.ButtonStyle.secondary)
+    async def vazgec(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="Islem Iptal Edildi",
+            description="Sistem ayarlari oldugu gibi birakildi.",
+            color=RENKLER["bilgi"],
+            timestamp=datetime.now(timezone.utc)
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+
+@bot.command(name="butunsistemlerikaldir")
+@commands.has_permissions(administrator=True)
+async def butun_sistemleri_kaldir_onayli(ctx):
+    embed = discord.Embed(
+        title="⚠️ Tum Sistemleri Kaldir",
+        description="Bu islem bu sunucudaki kayitli sistem ayarlarini tamamen siler.\nDevam etmek istiyorsan asagidaki butonu kullan.",
+        color=RENKLER["hata"],
+        timestamp=datetime.now(timezone.utc)
+    )
+    await ctx.send(embed=embed, view=ButunSistemleriKaldirView(ctx.author.id))
+
+
+for _yardim_eski in ("yardim", "help", "yardım"):
+    try:
+        bot.remove_command(_yardim_eski)
+    except Exception:
+        pass
+
+
+@bot.command(name="yardim", aliases=["help", "yardım"])
+async def yardim_renkli(ctx):
+    sahibi_id = ctx.author.id
+
+    komutlar = {}
+    for komut in bot.commands:
+        if komut.hidden:
+            continue
+        ad = komut.name
+        if ad in {"yardim", "help", "yardım"}:
+            continue
+        kategori = "Diger"
+        if any(k in ad for k in ["ban", "kick", "mute", "unmute", "warn", "sil", "jail"]):
+            kategori = "Moderasyon"
+        elif any(k in ad for k in ["ticket", "partner", "level", "hosgeldin", "karsilama", "gifcevap", "guvenlik", "kufur", "antilink", "spam"]):
+            kategori = "Sistemler"
+        elif any(k in ad for k in ["renk", "anime", "rol"]):
+            kategori = "Roller"
+        elif any(k in ad for k in ["profil", "afk"]):
+            kategori = "Kullanici"
+        elif any(k in ad for k in ["log", "uygulama"]):
+            kategori = "Ayarlar"
+        komutlar.setdefault(kategori, []).append(komut)
+
+    kategori_simgeleri = {
+        "Ayarlar": "🛠️",
+        "Moderasyon": "🔨",
+        "Roller": "🎨",
+        "Sistemler": "⚙️",
+        "Kullanici": "👤",
+        "Diger": "✨",
+    }
+    kategori_renkleri = {
+        "Ayarlar": 0x5865F2,
+        "Moderasyon": 0xED4245,
+        "Roller": 0xFEE75C,
+        "Sistemler": 0x57F287,
+        "Kullanici": 0xEB459E,
+        "Diger": 0x2ECC71,
+    }
+    kategori_sirasi = ["Ayarlar", "Moderasyon", "Roller", "Sistemler", "Kullanici", "Diger"]
+
+    def komut_satirlari(kategori: str) -> str:
+        liste = sorted(komutlar.get(kategori, []), key=lambda k: k.name)
+        return "\n".join(f"{kategori_simgeleri.get(kategori, '•')} .{k.name}" for k in liste[:25]) or "Komut bulunamadi."
+
+    def ana_embed():
+        embed = discord.Embed(
+            title="🌈 Blup Help Menusu",
+            description="Kategorileri asagidan secerek komutlari goruntuleyebilirsin.",
+            color=0x5865F2,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(
+            name="✨ Kisa Ozet",
+            value="\n".join(
+                f"{kategori_simgeleri.get(k, '•')} **{k}** • {len(komutlar.get(k, []))} komut"
+                for k in kategori_sirasi if komutlar.get(k)
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🚀 Hizli Baslangic",
+            value=".profil • .ticketpanel • .levelkur • .gifcevap • .jailkur • .spam-koruma-durum",
+            inline=False
+        )
+        embed.set_footer(text=f"Toplam {sum(len(v) for v in komutlar.values())} komut • {zaman_damgasi()}")
+        return embed
+
+    def kategori_embed(kategori: str):
+        embed = discord.Embed(
+            title=f"{kategori_simgeleri.get(kategori, '✨')} {kategori} Komutlari",
+            description=komut_satirlari(kategori),
+            color=kategori_renkleri.get(kategori, 0x5865F2),
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_footer(text=zaman_damgasi())
+        return embed
+
+    class KategoriSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label=k, value=k, description=f"{len(komutlar.get(k, []))} komut", emoji=kategori_simgeleri.get(k, "✨"))
+                for k in kategori_sirasi if komutlar.get(k)
+            ]
+            super().__init__(placeholder="Bir kategori sec", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
+
+    class YardimMenuSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label="Ana Menu", value="ana", description="Baslangic ekranina don", emoji="🏠"),
+                discord.SelectOption(label="Sistemler", value="Sistemler", description="Tum sistem komutlari", emoji="⚙️"),
+                discord.SelectOption(label="Moderasyon", value="Moderasyon", description="Ceza ve yonetim komutlari", emoji="🔨"),
+            ]
+            super().__init__(placeholder="Hizli gecis", min_values=1, max_values=1, options=secenekler)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            if self.values[0] == "ana":
+                await interaction.response.edit_message(embed=ana_embed(), view=view)
+                return
+            await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+            self.add_item(KategoriSec())
+            self.add_item(YardimMenuSec())
+
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return False
+            return True
+
+    view = HelpView()
+    await ctx.send(embed=ana_embed(), view=view)
 
 
 def _turkce_sure_parcala(metin: str):
