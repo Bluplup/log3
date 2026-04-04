@@ -5678,6 +5678,502 @@ async def butun_sistemleri_kaldir_onayli(ctx):
     await ctx.send(embed=embed, view=ButunSistemleriKaldirView(ctx.author.id))
 
 
+def _auto_cevap_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("oto_cevap", {"aktif": True, "kayitlar": []})
+
+
+def _auto_cevap_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "oto_cevap", veri)
+
+
+def _sayac_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("sayac_sistemi", {"aktif": False, "hedef": 0, "kanal_id": None, "mesaj": "Hedefe ulasildi!", "tetiklendi": False})
+
+
+def _sayac_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "sayac_sistemi", veri)
+
+
+def _notlar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("uye_notlari", {})
+
+
+def _notlar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "uye_notlari", veri)
+
+
+def _isim_gecmisi_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("isim_gecmisi", {})
+
+
+def _isim_gecmisi_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "isim_gecmisi", veri)
+
+
+def _yasakli_komutlar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("yasakli_komutlar", {})
+
+
+def _yasakli_komutlar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "yasakli_komutlar", veri)
+
+
+def _temprol_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("temprol", {})
+
+
+def _temprol_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "temprol", veri)
+
+
+@bot.check
+async def yasakli_komut_kontrolu(ctx):
+    if not ctx.guild or not ctx.command:
+        return True
+    yasakli = _yasakli_komutlar_al(ctx.guild.id)
+    kanal_yasak = set(yasakli.get(str(ctx.channel.id), []) or [])
+    if ctx.command.name in kanal_yasak and not ctx.author.guild_permissions.administrator:
+        raise commands.CheckFailure("Bu komut bu kanalda kapatildi.")
+    return True
+
+
+@bot.listen("on_command_error")
+async def yasakli_komut_hatasi(ctx, error):
+    if isinstance(error, commands.CheckFailure) and str(error) == "Bu komut bu kanalda kapatildi.":
+        await ctx.send(embed=hata_embedi("Komut Kapali", "Bu komut bu kanalda kullanima kapatildi."))
+
+
+@bot.listen("on_member_update")
+async def isim_gecmisi_dinle(onceki: discord.Member, sonraki: discord.Member):
+    eski = onceki.display_name
+    yeni = sonraki.display_name
+    if eski == yeni:
+        return
+    veri = _isim_gecmisi_al(sonraki.guild.id)
+    kayitlar = veri.setdefault(str(sonraki.id), [])
+    kayitlar.append({"eski": eski, "yeni": yeni, "zaman": datetime.now(timezone.utc).isoformat()})
+    veri[str(sonraki.id)] = kayitlar[-20:]
+    _isim_gecmisi_kaydet(sonraki.guild.id, veri)
+
+
+async def _sayac_kontrol_et(guild: discord.Guild):
+    ayar = _sayac_ayar_al(guild.id)
+    if not ayar.get("aktif"):
+        return
+    hedef = int(ayar.get("hedef", 0) or 0)
+    if hedef <= 0 or guild.member_count < hedef or ayar.get("tetiklendi"):
+        return
+    kanal = guild.get_channel(ayar.get("kanal_id")) if ayar.get("kanal_id") else None
+    if isinstance(kanal, discord.TextChannel):
+        mesaj = str(ayar.get("mesaj") or "Hedefe ulasildi!").replace("{member_count}", str(guild.member_count)).replace("{target}", str(hedef)).replace("{guild}", guild.name)
+        await kanal.send(mesaj)
+    ayar["tetiklendi"] = True
+    _sayac_ayar_kaydet(guild.id, ayar)
+
+
+@bot.listen("on_member_join")
+async def sayac_join(member: discord.Member):
+    ayar = _sayac_ayar_al(member.guild.id)
+    if ayar.get("tetiklendi") and member.guild.member_count < int(ayar.get("hedef", 0) or 0):
+        ayar["tetiklendi"] = False
+        _sayac_ayar_kaydet(member.guild.id, ayar)
+    await _sayac_kontrol_et(member.guild)
+
+
+@bot.listen("on_member_remove")
+async def sayac_remove(member: discord.Member):
+    ayar = _sayac_ayar_al(member.guild.id)
+    if ayar.get("tetiklendi") and member.guild.member_count < int(ayar.get("hedef", 0) or 0):
+        ayar["tetiklendi"] = False
+        _sayac_ayar_kaydet(member.guild.id, ayar)
+
+
+async def _temprol_dongusu():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        try:
+            simdi = datetime.now(timezone.utc)
+            ayarlar = ayarlari_yukle()
+            degisti = False
+            for gk, gveri in list(ayarlar.items()):
+                temprol = gveri.get("temprol", {})
+                kayitlar = temprol.get("kayitlar", [])
+                yeni_kayitlar = []
+                guild = bot.get_guild(int(gk)) if str(gk).isdigit() else None
+                for kayit in kayitlar:
+                    bitis = kayit.get("bitis")
+                    if not bitis:
+                        continue
+                    try:
+                        bitis_dt = utc_datetime_from_iso(bitis)
+                    except Exception:
+                        bitis_dt = simdi
+                    if guild and bitis_dt <= simdi:
+                        uye = guild.get_member(int(kayit.get("uye_id", 0)))
+                        rol = guild.get_role(int(kayit.get("rol_id", 0)))
+                        if uye and rol and rol in uye.roles:
+                            try:
+                                await uye.remove_roles(rol, reason="Sureli rol suresi doldu")
+                            except Exception:
+                                yeni_kayitlar.append(kayit)
+                                continue
+                        degisti = True
+                    else:
+                        yeni_kayitlar.append(kayit)
+                if kayitlar != yeni_kayitlar:
+                    gveri.setdefault("temprol", {})["kayitlar"] = yeni_kayitlar
+                    ayarlar[gk] = gveri
+                    degisti = True
+            if degisti:
+                ayarlari_kaydet(ayarlar)
+        except Exception as e:
+            print(f"[UYARI] Temprol dongusu: {e}")
+        await asyncio.sleep(20)
+
+
+@bot.listen("on_ready")
+async def temprol_dongu_baslat():
+    if not getattr(bot, "_temprol_dongusu_basladi", False):
+        bot._temprol_dongusu_basladi = True
+        asyncio.create_task(_temprol_dongusu())
+
+
+@bot.listen("on_message")
+async def oto_cevap_dinle(message: discord.Message):
+    if message.author.bot or not message.guild:
+        return
+    ayar = _auto_cevap_ayar_al(message.guild.id)
+    if not ayar.get("aktif", True):
+        return
+    icerik = message.content.lower()
+    for kayit in ayar.get("kayitlar", []):
+        anahtar = str(kayit.get("anahtar", "")).lower().strip()
+        cevap = str(kayit.get("cevap", "")).strip()
+        if anahtar and cevap and anahtar in icerik:
+            await message.channel.send(cevap)
+            break
+
+
+@bot.command(name="sunucupanel")
+async def sunucu_panel(ctx):
+    g = ctx.guild
+    embed = discord.Embed(title="🏰 Sunucu Paneli", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Sunucu", value=g.name, inline=True)
+    embed.add_field(name="Uye", value=str(g.member_count), inline=True)
+    embed.add_field(name="Boost", value=str(g.premium_subscription_count or 0), inline=True)
+    embed.add_field(name="Kanal", value=str(len(g.channels)), inline=True)
+    embed.add_field(name="Rol", value=str(len(g.roles)), inline=True)
+    embed.add_field(name="Kurulus", value=g.created_at.strftime("%d.%m.%Y"), inline=True)
+    if g.icon:
+        embed.set_thumbnail(url=g.icon.url)
+    embed.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="yetkilipanel")
+@commands.has_permissions(manage_guild=True)
+async def yetkili_panel(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {})
+    warnlar = ayarlar.get("uyarilar", {})
+    partnerler = ayarlar.get("yetkili_partnerleri", {})
+    satirlar = []
+    for uye in ctx.guild.members:
+        if uye.bot:
+            continue
+        if any(p for p, v in uye.guild_permissions if v and p in {"ban_members", "kick_members", "moderate_members", "manage_guild"}):
+            warn_sayi = len(warnlar.get(str(uye.id), []))
+            partner_sayi = int(partnerler.get(str(uye.id), {}).get("sayi", 0))
+            satirlar.append(f"👤 {uye.mention} • Uyari: {warn_sayi} • Partner: {partner_sayi}")
+    embed = discord.Embed(title="👮 Yetkili Paneli", description="\n".join(satirlar[:20]) or "Yetkili bulunamadi.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="cezagecmisi")
+@commands.has_permissions(manage_guild=True)
+async def ceza_gecmisi(ctx, uye: discord.Member = None):
+    hedef = uye or (ctx.message.reference.resolved.author if ctx.message.reference and isinstance(ctx.message.reference.resolved, discord.Message) and isinstance(ctx.message.reference.resolved.author, discord.Member) else None)
+    if hedef is None:
+        await ctx.send(embed=kullanim_embedi(".cezagecmisi @uye"))
+        return
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {})
+    warnlar = ayarlar.get("uyarilar", {}).get(str(hedef.id), [])
+    jail_kayit = _jail_ayar_al(ctx.guild.id).get("kayitlar", {}).get(str(hedef.id))
+    timeout_var = "Evet" if hedef.timed_out_until and hedef.timed_out_until > datetime.now(timezone.utc) else "Hayir"
+    embed = discord.Embed(title="📘 Ceza Gecmisi", description=f"{hedef.mention} icin kayitlar", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Uyari Sayisi", value=str(len(warnlar)), inline=True)
+    embed.add_field(name="Aktif Timeout", value=timeout_var, inline=True)
+    embed.add_field(name="Aktif Jail", value="Evet" if jail_kayit else "Hayir", inline=True)
+    if warnlar:
+        son_warn = "\n".join(f"• {k.get('sebep', 'Sebep yok')}" for k in warnlar[-5:])
+        embed.add_field(name="Son Uyarilar", value=son_warn[:1024], inline=False)
+    embed.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="temprol")
+@commands.has_permissions(manage_roles=True)
+async def temprol(ctx, uye: discord.Member = None, rol: discord.Role = None, *, arguman: str = ""):
+    if not uye or not rol:
+        await ctx.send(embed=kullanim_embedi(".temprol @uye @rol 10 dakika"))
+        return
+    saniye, _ = _turkce_sure_parcala(arguman)
+    if saniye <= 0:
+        await ctx.send(embed=hata_embedi("Sure Hatasi", "Gecerli bir sure yazmalisin. Ornek: 10 dakika"))
+        return
+    await uye.add_roles(rol, reason=f"{ctx.author} tarafindan sureli rol verildi")
+    veri = _temprol_ayar_al(ctx.guild.id)
+    kayitlar = veri.get("kayitlar", [])
+    kayitlar.append({"uye_id": uye.id, "rol_id": rol.id, "bitis": (datetime.now(timezone.utc) + timedelta(seconds=saniye)).isoformat()})
+    veri["kayitlar"] = kayitlar[-200:]
+    _temprol_ayar_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="⏳ Sureli Rol Verildi", description=f"{uye.mention} kullanicisina {rol.mention} rolu verildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="otocevap")
+@commands.has_permissions(manage_guild=True)
+async def oto_cevap(ctx, anahtar: str = None, *, cevap: str = None):
+    if not anahtar or not cevap:
+        await ctx.send(embed=kullanim_embedi(".otocevap merhaba Selam, hos geldin!"))
+        return
+    ayar = _auto_cevap_ayar_al(ctx.guild.id)
+    kayitlar = [k for k in ayar.get("kayitlar", []) if str(k.get("anahtar", "")).lower() != anahtar.lower()]
+    kayitlar.append({"anahtar": anahtar, "cevap": cevap})
+    ayar["kayitlar"] = kayitlar[-100:]
+    ayar["aktif"] = True
+    _auto_cevap_kaydet(ctx.guild.id, ayar)
+    await ctx.send(embed=discord.Embed(title="💬 Oto Cevap Kaydedildi", description=f"Anahtar: **{anahtar}**", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="sayac")
+@commands.has_permissions(manage_guild=True)
+async def sayac(ctx, hedef: int = 0, kanal: discord.TextChannel = None, *, mesaj: str = None):
+    if hedef <= 0 or kanal is None:
+        await ctx.send(embed=kullanim_embedi(".sayac 500 #kanal Hedefe ulastik! {member_count}/{target}"))
+        return
+    veri = {"aktif": True, "hedef": hedef, "kanal_id": kanal.id, "mesaj": mesaj or "🎉 Seninle birlikte {member_count} kisiyiz! Hedefimiz {target} idi.", "tetiklendi": False}
+    _sayac_ayar_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="🎯 Sayac Ayarlandi", description=f"Hedef: **{hedef}** • Kanal: {kanal.mention}", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+class GenelRolSec(discord.ui.Select):
+    def __init__(self, guild_id: int, rol_idleri: list[int]):
+        self.rol_idleri = rol_idleri
+        guild = bot.get_guild(guild_id)
+        roller = [guild.get_role(rid) for rid in rol_idleri] if guild else []
+        roller = [r for r in roller if r]
+        secenekler = [discord.SelectOption(label=r.name[:100], value=str(r.id), description=f"{len(r.members)} uye") for r in roller[:25]]
+        super().__init__(placeholder="Bir rol sec", min_values=1, max_values=max(1, len(secenekler)), options=secenekler)
+
+    async def callback(self, interaction: discord.Interaction):
+        roller = [interaction.guild.get_role(int(v)) for v in self.values]
+        roller = [r for r in roller if r]
+        if roller:
+            await interaction.user.add_roles(*roller, reason="Rol menu secimi")
+        await interaction.response.send_message("Roller eklendi.", ephemeral=True)
+
+
+class GenelRolMenuView(discord.ui.View):
+    def __init__(self, guild_id: int, rol_idleri: list[int]):
+        super().__init__(timeout=None)
+        self.add_item(GenelRolSec(guild_id, rol_idleri))
+
+
+@bot.command(name="rolmenu")
+@commands.has_permissions(manage_roles=True)
+async def rol_menu(ctx, *roller: discord.Role):
+    if not roller:
+        await ctx.send(embed=kullanim_embedi(".rolmenu @rol1 @rol2 @rol3"))
+        return
+    embed = discord.Embed(title="🎨 Rol Menusu", description="Asagidan istedigin rolleri secebilirsin.", color=RENKLER["rol"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Roller", value="\n".join(r.mention for r in roller[:25]), inline=False)
+    await ctx.send(embed=embed, view=GenelRolMenuView(ctx.guild.id, [r.id for r in roller]))
+
+
+@bot.command(name="notekle")
+@commands.has_permissions(manage_guild=True)
+async def not_ekle(ctx, uye: discord.Member = None, *, not_metni: str = None):
+    if not uye or not not_metni:
+        await ctx.send(embed=kullanim_embedi(".notekle @uye metin"))
+        return
+    veri = _notlar_al(ctx.guild.id)
+    kayitlar = veri.setdefault(str(uye.id), [])
+    kayitlar.append({"yazan": ctx.author.id, "metin": not_metni, "zaman": datetime.now(timezone.utc).isoformat()})
+    veri[str(uye.id)] = kayitlar[-20:]
+    _notlar_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="📝 Uye Notu Eklendi", description=f"{uye.mention} icin not kaydedildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="isimgecmisi")
+@commands.has_permissions(manage_guild=True)
+async def isim_gecmisi(ctx, uye: discord.Member = None):
+    if not uye:
+        await ctx.send(embed=kullanim_embedi(".isimgecmisi @uye"))
+        return
+    veri = _isim_gecmisi_al(ctx.guild.id).get(str(uye.id), [])
+    satirlar = [f"• {k.get('eski')} → {k.get('yeni')}" for k in veri[-10:]]
+    await ctx.send(embed=discord.Embed(title="🏷️ Isim Gecmisi", description="\n".join(satirlar) or "Kayit yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="sesistatistik")
+async def ses_istatistik(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {}).get("profil_istat", {})
+    satirlar = []
+    for uye_id, veri in sorted(ayarlar.items(), key=lambda x: int(x[1].get("voice_seconds", 0)), reverse=True)[:10]:
+        uye = ctx.guild.get_member(int(uye_id))
+        if uye:
+            satirlar.append(f"🎤 {uye.mention} • {_sureyi_formatla(int(veri.get('voice_seconds', 0)))}")
+    await ctx.send(embed=discord.Embed(title="🎙️ Ses Istatistik", description="\n".join(satirlar) or "Kayit yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="mesajistatistik")
+async def mesaj_istatistik(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {}).get("profil_istat", {})
+    satirlar = []
+    for uye_id, veri in sorted(ayarlar.items(), key=lambda x: int(x[1].get("message_count", 0)), reverse=True)[:10]:
+        uye = ctx.guild.get_member(int(uye_id))
+        if uye:
+            satirlar.append(f"💬 {uye.mention} • {int(veri.get('message_count', 0))} mesaj")
+    await ctx.send(embed=discord.Embed(title="📨 Mesaj Istatistik", description="\n".join(satirlar) or "Kayit yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="kurulumdurum")
+@commands.has_permissions(manage_guild=True)
+async def kurulum_durum(ctx):
+    ticket = ticket_ayar_al(ctx.guild.id)
+    level = _level_ayar_al(ctx.guild.id)
+    hosgeldin = _welcome_ayar_al(ctx.guild.id)
+    karsilama = _karsilama_ayar_al(ctx.guild.id)
+    guvenlik = _guvenlik_ayar_al(ctx.guild.id)
+    jail = _jail_ayar_al(ctx.guild.id)
+    embed = discord.Embed(title="🧩 Kurulum Durumu", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Ticket", value="✅" if ticket.get("kategori") else "❌", inline=True)
+    embed.add_field(name="Level", value="✅" if level.get("kanal_id") else "❌", inline=True)
+    embed.add_field(name="Hosgeldin", value="✅" if hosgeldin.get("kanal_id") else "❌", inline=True)
+    embed.add_field(name="Karsilama", value="✅" if karsilama.get("kanal_id") else "❌", inline=True)
+    embed.add_field(name="Guvenlik", value="✅" if guvenlik.get("aktif") else "❌", inline=True)
+    embed.add_field(name="Jail", value="✅" if jail.get("aktif") else "❌", inline=True)
+    embed.add_field(name="Partner", value="✅" if partner_kanal_id_al(ctx.guild.id) else "❌", inline=True)
+    embed.add_field(name="Oto Cevap", value="✅" if _auto_cevap_ayar_al(ctx.guild.id).get("kayitlar") else "❌", inline=True)
+    embed.add_field(name="Spam", value="✅" if _guild_ayar_al(ctx.guild.id).get("guvenlik_spam_koruma", {}).get("aktif") else "❌", inline=True)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="yasakli-komut")
+@commands.has_permissions(manage_guild=True)
+async def yasakli_komut(ctx, kanal: discord.TextChannel = None, *komutlar):
+    if kanal is None or not komutlar:
+        await ctx.send(embed=kullanim_embedi(".yasakli-komut #kanal mute ban kick"))
+        return
+    veri = _yasakli_komutlar_al(ctx.guild.id)
+    mevcut = set(veri.get(str(kanal.id), []))
+    for komut in komutlar:
+        komut = komut.lstrip(".").lower()
+        if komut in mevcut:
+            mevcut.remove(komut)
+        else:
+            mevcut.add(komut)
+    veri[str(kanal.id)] = sorted(mevcut)
+    _yasakli_komutlar_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="🚫 Yasakli Komutlar Guncellendi", description=f"{kanal.mention} icin: {', '.join(sorted(mevcut)) or 'Yok'}", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+try:
+    bot.remove_command("yardim")
+    bot.remove_command("help")
+    bot.remove_command("yardım")
+except Exception:
+    pass
+
+
+@bot.command(name="yardim", aliases=["help", "yardım"])
+async def yardim_canli(ctx):
+    sahibi_id = ctx.author.id
+    kategoriler = {
+        "🛠️ Ayarlar": ["ticketpanel", "ticketkur", "levelkur", "hosgeldinkur", "karsilamakur", "guvenlikkur", "jailkur", "sayac", "kurulumdurum"],
+        "🔨 Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "warn", "uyarılar", "uyarısil", "jail", "unjail", "temprol"],
+        "🎨 Roller": ["renkpanel", "rolmenu", "animerolpanel", "animerollerikur", "animerollerikaldir", "asagitasi"],
+        "⚙️ Sistemler": ["gifcevap", "otocevap", "spam-koruma-kur", "spam-koruma-durum", "spam-koruma-muaf-rol", "spam-koruma-muaf-kanal", "kufur-kur", "yetkilikufurkur", "yasakli-komut"],
+        "👤 Kullanici": ["profil", "sunucu", "sunucupanel", "sesistatistik", "mesajistatistik", "isimgecmisi", "notekle", "cezagecmisi", "yetkilipanel"],
+    }
+
+    def ana_embed():
+        embed = discord.Embed(
+            title="🌈 Blup Komut Menusu",
+            description="Canli, renkli ve sade bir yardim menusu.\nAsagidaki menuden kategori secip komutlari inceleyebilirsin.",
+            color=0xFF66C4,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.add_field(
+            name="🎊 Kategoriler",
+            value="\n".join(f"{k} • {len(v)} komut" for k, v in kategoriler.items()),
+            inline=False
+        )
+        embed.add_field(
+            name="🚀 Populer Komutlar",
+            value="profil • ticketpanel • levelkur • gifcevap • jailkur • kurulumdurum",
+            inline=False
+        )
+        embed.set_footer(text=f"{sum(len(v) for v in kategoriler.values())} komut • {zaman_damgasi()}")
+        return embed
+
+    def kategori_embed(baslik: str):
+        renkler = [0xFF66C4, 0x5865F2, 0x57F287, 0xFEE75C, 0xED4245]
+        komut_listesi = [f"✨ .{k}" for k in kategoriler.get(baslik, [])]
+        embed = discord.Embed(
+            title=baslik,
+            description="\n".join(komut_listesi) or "Komut yok.",
+            color=random.choice(renkler),
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_footer(text=zaman_damgasi())
+        return embed
+
+    class KategoriSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [discord.SelectOption(label=k.replace("🛠️ ", "").replace("🔨 ", "").replace("🎨 ", "").replace("⚙️ ", "").replace("👤 ", ""), value=k, description=f"{len(v)} komut", emoji=k.split()[0]) for k, v in kategoriler.items()]
+            super().__init__(placeholder="Bir kategori sec", options=secenekler, min_values=1, max_values=1)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
+
+    class KisaYolSec(discord.ui.Select):
+        def __init__(self):
+            secenekler = [
+                discord.SelectOption(label="Ana Menu", value="ana", emoji="🏠"),
+                discord.SelectOption(label="Moderasyon", value="🔨 Moderasyon", emoji="🔨"),
+                discord.SelectOption(label="Sistemler", value="⚙️ Sistemler", emoji="⚙️"),
+            ]
+            super().__init__(placeholder="Hizli gecis", options=secenekler, min_values=1, max_values=1)
+
+        async def callback(self, interaction: discord.Interaction):
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return
+            if self.values[0] == "ana":
+                await interaction.response.edit_message(embed=ana_embed(), view=view)
+            else:
+                await interaction.response.edit_message(embed=kategori_embed(self.values[0]), view=view)
+
+    class HelpView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=None)
+            self.add_item(KategoriSec())
+            self.add_item(KisaYolSec())
+
+        async def interaction_check(self, interaction: discord.Interaction) -> bool:
+            if interaction.user.id != sahibi_id:
+                await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+                return False
+            return True
+
+    view = HelpView()
+    await ctx.send(embed=ana_embed(), view=view)
+
+
 for _yardim_eski in ("yardim", "help", "yardım"):
     try:
         bot.remove_command(_yardim_eski)
