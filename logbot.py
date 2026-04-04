@@ -9383,7 +9383,7 @@ def _yardim_ana_embed(istek_sahibi):
     kategoriler = _yardim_final_topla()
     toplam = sum(len(v["komutlar"]) for v in kategoriler.values())
     embed = discord.Embed(title=" Komut Menusu", description="Canli, duzgun ve daha renkli bir yardim menusu. Asagidan kategori secip direkt istedigin komutlara gec.", color=0xF7C948, timestamp=datetime.now(timezone.utc))
-    embed.add_field(name=" Kategoriler", value="\n".join(f"{veri['emoji']} **{kategori}**: {len(veri['komutlar'])}" for kategori, veri in kategoriler.items() if veri["komutlar"]) or "Komut bulunamadi.", inline=True)
+    embed.add_field(name=" Kategoriler", value="\n".join(f"**{kategori}**: {len(veri['komutlar'])}" for kategori, veri in kategoriler.items() if veri["komutlar"]) or "Komut bulunamadi.", inline=True)
     embed.add_field(name=" Hizli Baslangic", value=" `.renkpanel`\n `.ticketpanel`\n `.levelkur`\n `.gifcevap`\n `.jailkur`\n `.komutbilgi mute`", inline=True)
     embed.add_field(name=" Ipuclari", value="Menuler sadece komutu yazan kisi tarafindan kullanilir.\n`.komutbilgi komutadi` ile detay gorebilirsin.\nToplam komut sayisi dinamik hesaplanir.", inline=False)
     embed.set_footer(text=f"{istek_sahibi} tarafindan acildi  Toplam {toplam} komut")
@@ -9404,8 +9404,12 @@ class YardimKategoriSec(discord.ui.Select):
     def __init__(self, sahip_id):
         self.sahip_id = sahip_id
         kategoriler = _yardim_final_topla()
-        options = [discord.SelectOption(label=kategori, description=f"{len(veri['komutlar'])} komut", emoji=veri["emoji"], value=kategori) for kategori, veri in kategoriler.items() if veri["komutlar"]]
-        super().__init__(placeholder="Bir kategori sec", min_values=1, max_values=1, options=options, custom_id="yardim_final_kategori")
+        options = [
+            discord.SelectOption(label=kategori, description=f"{len(veri['komutlar'])} komut", value=kategori)
+            for kategori, veri in kategoriler.items()
+            if veri["komutlar"]
+        ]
+        super().__init__(placeholder="Kategori sec", min_values=1, max_values=1, options=options, custom_id="yardim_final_kategori")
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.sahip_id:
