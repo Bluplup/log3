@@ -10515,10 +10515,11 @@ async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: 
 async def _ship_mesaji_gonder(hedef, uye1: discord.Member, uye2: discord.Member, yuzde: int, sahip_id: int):
     kart = await _ship_kart_olustur(uye1, uye2, yuzde)
     dosya = discord.File(fp=kart, filename="ship.png")
+    ship_renk = RENKLER.get("uyari", RENKLER.get("rol", RENKLER.get("bilgi", 0xE74C3C)))
     embed = discord.Embed(
         title="Ship Sonucu",
         description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
-        color=RENKLER["uyari"],
+        color=ship_renk,
         timestamp=datetime.now(timezone.utc),
     )
     embed.set_image(url="attachment://ship.png")
@@ -10550,10 +10551,11 @@ class ShipView(discord.ui.View):
         yeni_yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id, rastgele=True)
         kart = await _ship_kart_olustur(uye1, uye2, yeni_yuzde)
         dosya = discord.File(fp=kart, filename="ship.png")
+        ship_renk = RENKLER.get("uyari", RENKLER.get("rol", RENKLER.get("bilgi", 0xE74C3C)))
         embed = discord.Embed(
             title="Ship Sonucu",
             description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yeni_yuzde}%`\n{_ship_yorum(yeni_yuzde)}",
-            color=RENKLER["uyari"],
+            color=ship_renk,
             timestamp=datetime.now(timezone.utc),
         )
         embed.set_image(url="attachment://ship.png")
@@ -10591,10 +10593,11 @@ async def ship(ctx, uye1: discord.Member = None, uye2: discord.Member = None):
             yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
             kart = await _ship_kart_olustur(uye1, uye2, yuzde)
         dosya = discord.File(fp=kart, filename="ship.png")
+        ship_renk = RENKLER.get("uyari", RENKLER.get("rol", RENKLER.get("bilgi", 0xE74C3C)))
         embed = discord.Embed(
             title="Ship Sonucu",
             description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
-            color=RENKLER["uyari"],
+            color=ship_renk,
             timestamp=datetime.now(timezone.utc),
         )
         embed.set_image(url="attachment://ship.png")
