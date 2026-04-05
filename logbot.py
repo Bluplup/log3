@@ -9506,11 +9506,11 @@ if __name__ == "__main__":
 def _help_kategori_komutlari():
     tum = {c.name: c for c in bot.commands if not c.hidden}
     return {
-        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "yasakli-komut"],
-        "Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "jail", "unjail", "cezagecmisi", "cezasil", "kanalkilit", "kanalac"],
-        "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "yetkiver", "yetkial", "temprol", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler"],
-        "Sistemler": ["ticketpanel", "ticketkur", "partner-kur", "partner-kapat", "partnerpuan", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "spam-koruma-durum", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "levelkur", "levelkapat"],
-        "Kullanici": ["profil", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "destekistek"],
+        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "sayac-kapat", "yasakli-komut", "rollog"],
+        "Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "jail", "unjail", "cezagecmisi", "cezasil", "cezapanel", "yetkiceza", "kanalkilit", "kanalac"],
+        "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "yetkiver", "yetkial", "temprol", "roldagit", "roltemizle", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler", "rozetver", "rozetal", "profil-arka-plan"],
+        "Sistemler": ["ticketpanel", "ticketkur", "partner-kur", "partner-kapat", "partnerpuan", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "otocevap-kapat", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "spam-koruma-durum", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "levelkur", "levelkapat", "basvuru-panel", "itiraz-panel", "afis", "ses-kanal-ac", "ozeloda"],
+        "Kullanici": ["profil", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "not-temizle", "destekistek", "welcome-say", "kimnezaman"],
         "Bilgi": ["sunucupanel", "yetkilipanel", "sesistatistik", "mesajistatistik", "leaderboard", "say", "kanalbilgi", "komutbilgi", "ping"],
     }, tum
 
@@ -9615,6 +9615,341 @@ async def help_basit(ctx):
 @bot.command(name="komutlar")
 async def komutlar_basit(ctx):
     await _basit_help_gonder(ctx)
+
+
+def _rozetler_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("profil_rozetleri", {})
+
+
+def _rozetler_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "profil_rozetleri", veri)
+
+
+def _profil_tema_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("profil_tema", {})
+
+
+def _profil_tema_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "profil_tema", veri)
+
+
+def _basvuru_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("basvuru_paneli", {"aktif": False, "log_kanal_id": None})
+
+
+def _basvuru_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "basvuru_paneli", veri)
+
+
+def _itiraz_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("itiraz_paneli", {"aktif": False, "log_kanal_id": None})
+
+
+def _itiraz_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "itiraz_paneli", veri)
+
+
+def _rollog_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("rol_log_ozel", {"kanal_id": None})
+
+
+def _rollog_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "rol_log_ozel", veri)
+
+
+class BasvuruModal(discord.ui.Modal, title="Basvuru Formu"):
+    yas = discord.ui.TextInput(label="Yas", required=True, max_length=20)
+    deneyim = discord.ui.TextInput(label="Deneyim", required=True, style=discord.TextStyle.paragraph, max_length=500)
+    neden = discord.ui.TextInput(label="Neden sen?", required=True, style=discord.TextStyle.paragraph, max_length=500)
+
+    def __init__(self, guild_id: int):
+        super().__init__()
+        self.guild_id = guild_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        ayar = _basvuru_ayar_al(self.guild_id)
+        log_kanal = interaction.guild.get_channel(int(ayar.get("log_kanal_id") or 0))
+        if not log_kanal:
+            await interaction.response.send_message("Basvuru log kanali bulunamadi.", ephemeral=True)
+            return
+        embed = discord.Embed(title="Basvuru Geldi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="Kullanici", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
+        embed.add_field(name="Yas", value=str(self.yas), inline=True)
+        embed.add_field(name="Deneyim", value=str(self.deneyim)[:1024], inline=False)
+        embed.add_field(name="Neden", value=str(self.neden)[:1024], inline=False)
+        await log_kanal.send(embed=embed)
+        await interaction.response.send_message("Basvurun gonderildi.", ephemeral=True)
+
+
+class BasvuruView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="Basvuru Yap", style=discord.ButtonStyle.primary, custom_id="basvuru_yap_btn")
+    async def basvuru_yap(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(BasvuruModal(self.guild_id))
+
+
+class ItirazModal(discord.ui.Modal, title="Ceza Itirazi"):
+    ceza = discord.ui.TextInput(label="Ceza Turu", required=True, max_length=100)
+    aciklama = discord.ui.TextInput(label="Itiraz Aciklamasi", required=True, style=discord.TextStyle.paragraph, max_length=700)
+
+    def __init__(self, guild_id: int):
+        super().__init__()
+        self.guild_id = guild_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        ayar = _itiraz_ayar_al(self.guild_id)
+        log_kanal = interaction.guild.get_channel(int(ayar.get("log_kanal_id") or 0))
+        if not log_kanal:
+            await interaction.response.send_message("Itiraz log kanali bulunamadi.", ephemeral=True)
+            return
+        embed = discord.Embed(title="Ceza Itirazi", color=RENKLER["mute"], timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="Kullanici", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
+        embed.add_field(name="Ceza", value=str(self.ceza), inline=True)
+        embed.add_field(name="Aciklama", value=str(self.aciklama)[:1024], inline=False)
+        await log_kanal.send(embed=embed)
+        await interaction.response.send_message("Itirazin gonderildi.", ephemeral=True)
+
+
+class ItirazView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="Itiraz Gonder", style=discord.ButtonStyle.secondary, custom_id="itiraz_yap_btn")
+    async def itiraz_yap(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(ItirazModal(self.guild_id))
+
+
+@bot.command(name="afis", help="Hazir afis/duyuru embedi yollar.")
+@commands.has_permissions(manage_guild=True)
+async def afis(ctx, baslik: str = None, *, metin: str = None):
+    if not baslik or not metin:
+        await ctx.send(embed=kullanim_embedi(".afis Baslik metin"))
+        return
+    embed = discord.Embed(title=baslik, description=metin, color=0xF7C948, timestamp=datetime.now(timezone.utc))
+    if ctx.guild.icon:
+        embed.set_thumbnail(url=ctx.guild.icon.url)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="roldagit", help="Belirli role sahip herkese baska rol verir.")
+@commands.has_permissions(manage_roles=True)
+async def roldagit(ctx, kaynak_rol: discord.Role = None, verilecek_rol: discord.Role = None):
+    if not kaynak_rol or not verilecek_rol:
+        await ctx.send(embed=kullanim_embedi(".roldagit @kaynakRol @verilecekRol"))
+        return
+    sayi = 0
+    for uye in kaynak_rol.members:
+        if verilecek_rol not in uye.roles:
+            try:
+                await uye.add_roles(verilecek_rol, reason=f"{ctx.author} tarafindan roldagit")
+                sayi += 1
+            except Exception:
+                pass
+    await ctx.send(embed=discord.Embed(title="Rol Dagitildi", description=f"{sayi} uyeye {verilecek_rol.mention} verildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="roltemizle", help="Belirli role sahip herkesten baska rolu alir.")
+@commands.has_permissions(manage_roles=True)
+async def roltemizle(ctx, kaynak_rol: discord.Role = None, alinacak_rol: discord.Role = None):
+    if not kaynak_rol or not alinacak_rol:
+        await ctx.send(embed=kullanim_embedi(".roltemizle @kaynakRol @alinacakRol"))
+        return
+    sayi = 0
+    for uye in kaynak_rol.members:
+        if alinacak_rol in uye.roles:
+            try:
+                await uye.remove_roles(alinacak_rol, reason=f"{ctx.author} tarafindan roltemizle")
+                sayi += 1
+            except Exception:
+                pass
+    await ctx.send(embed=discord.Embed(title="Rol Temizlendi", description=f"{sayi} uyeden {alinacak_rol.mention} alindi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="cezapanel", help="Sunucunun ceza ozetini gosterir.")
+@commands.has_permissions(manage_guild=True)
+async def cezapanel(ctx):
+    ayar = ayarlari_yukle().get(str(ctx.guild.id), {})
+    warnlar = ayar.get("uyarilar", {})
+    toplam_warn = sum(len(v) for v in warnlar.values())
+    jail_ayar = _jail_ayar_al(ctx.guild.id)
+    jail_rol = ctx.guild.get_role(int(jail_ayar.get("rol_id") or 0)) if jail_ayar.get("rol_id") else None
+    jailde = len(jail_rol.members) if jail_rol else 0
+    ban_sayi = 0
+    async for _ in ctx.guild.bans(limit=1000):
+        ban_sayi += 1
+    embed = discord.Embed(title="Ceza Paneli", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Toplam Uyari", value=str(toplam_warn), inline=True)
+    embed.add_field(name="Jaildeki Uye", value=str(jailde), inline=True)
+    embed.add_field(name="Sunucu Bani", value=str(ban_sayi), inline=True)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="yetkiceza", help="Yetkililerin son ceza hareketlerini listeler.")
+@commands.has_permissions(view_audit_log=True)
+async def yetkiceza(ctx):
+    sayac = {}
+    async for entry in ctx.guild.audit_logs(limit=50):
+        if entry.action in {discord.AuditLogAction.ban, discord.AuditLogAction.kick, discord.AuditLogAction.member_update} and entry.user:
+            sayac[str(entry.user)] = sayac.get(str(entry.user), 0) + 1
+    satirlar = [f"• **{k}** - {v} islem" for k, v in sorted(sayac.items(), key=lambda x: x[1], reverse=True)[:10]]
+    await ctx.send(embed=discord.Embed(title="Yetkili Ceza Ozeti", description="\n".join(satirlar) or "Kayit bulunamadi.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="basvuru-panel", help="Basvuru paneli kurar.")
+@commands.has_permissions(manage_guild=True)
+async def basvuru_panel(ctx, log_kanal: discord.TextChannel = None):
+    if not log_kanal:
+        await ctx.send(embed=kullanim_embedi(".basvuru-panel #log"))
+        return
+    _basvuru_ayar_kaydet(ctx.guild.id, {"aktif": True, "log_kanal_id": log_kanal.id})
+    view = BasvuruView(ctx.guild.id)
+    bot.add_view(view)
+    await ctx.send(embed=discord.Embed(title="Basvuru Paneli", description="Basvuru yapmak icin asagidaki butonu kullan.", color=RENKLER["bilgi"]), view=view)
+
+
+@bot.command(name="itiraz-panel", help="Ceza itiraz paneli kurar.")
+@commands.has_permissions(manage_guild=True)
+async def itiraz_panel(ctx, log_kanal: discord.TextChannel = None):
+    if not log_kanal:
+        await ctx.send(embed=kullanim_embedi(".itiraz-panel #log"))
+        return
+    _itiraz_ayar_kaydet(ctx.guild.id, {"aktif": True, "log_kanal_id": log_kanal.id})
+    view = ItirazView(ctx.guild.id)
+    bot.add_view(view)
+    await ctx.send(embed=discord.Embed(title="Itiraz Paneli", description="Itiraz gondermek icin asagidaki butonu kullan.", color=RENKLER["mute"]), view=view)
+
+
+@bot.command(name="sayac-kapat", help="Sayac sistemini kapatir.")
+@commands.has_permissions(manage_guild=True)
+async def sayac_kapat(ctx):
+    _sayac_ayar_kaydet(ctx.guild.id, {"aktif": False, "hedef": 0, "kanal_id": None, "mesaj": "Hedefe ulasildi!", "tetiklendi": False})
+    await ctx.send(embed=discord.Embed(title="Sayac Kapatildi", description="Sayac sistemi kapatildi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="otocevap-kapat", help="Yazi tabanli otocevabi kapatir.")
+@commands.has_permissions(manage_guild=True)
+async def otocevap_kapat(ctx):
+    _auto_cevap_kaydet(ctx.guild.id, {})
+    await ctx.send(embed=discord.Embed(title="Otocevap Kapatildi", description="Tum otocevaplar temizlendi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="not-temizle", help="Uyenin tum notlarini temizler.")
+@commands.has_permissions(manage_guild=True)
+async def not_temizle(ctx, uye: discord.Member = None):
+    if not uye:
+        await ctx.send(embed=kullanim_embedi(".not-temizle @uye"))
+        return
+    veri = _notlar_al(ctx.guild.id)
+    veri.pop(str(uye.id), None)
+    _notlar_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="Notlar Temizlendi", description=f"{uye.mention} icin tum notlar silindi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="rollog", help="Rol hareketleri icin ozel log kanali ayarlar.")
+@commands.has_permissions(manage_guild=True)
+async def rollog(ctx, kanal: discord.TextChannel = None):
+    if not kanal:
+        ayar = _rollog_ayar_al(ctx.guild.id)
+        aktif = ctx.guild.get_channel(int(ayar.get("kanal_id") or 0)) if ayar.get("kanal_id") else None
+        await ctx.send(embed=discord.Embed(title="Rol Log Durumu", description=aktif.mention if aktif else "Ayarlanmamis", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+        return
+    _rollog_ayar_kaydet(ctx.guild.id, {"kanal_id": kanal.id})
+    await ctx.send(embed=discord.Embed(title="Rol Log Ayarlandi", description=f"Rol hareketleri {kanal.mention} kanalina gidecek.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="ses-kanal-ac", help="Hazir bir ses kanali acar.")
+@commands.has_permissions(manage_channels=True)
+async def ses_kanal_ac(ctx, *, ad: str = None):
+    if not ad:
+        await ctx.send(embed=kullanim_embedi(".ses-kanal-ac Ozel Oda"))
+        return
+    kanal = await ctx.guild.create_voice_channel(ad, reason=f"{ctx.author} tarafindan olusturuldu")
+    await ctx.send(embed=discord.Embed(title="Ses Kanali Acildi", description=kanal.mention if hasattr(kanal, 'mention') else kanal.name, color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="ozeloda", help="Kullanan kisi icin ozel ses odasi acar.")
+async def ozeloda(ctx, *, ad: str = None):
+    if not ctx.author.voice or not ctx.author.voice.channel:
+        await ctx.send(embed=hata_embedi("Ses Kanalinda Degilsin", "Bu komutu kullanmak icin once bir ses kanalinda olmalisin."))
+        return
+    oda_adi = ad or f"{ctx.author.display_name} Ozel Oda"
+    overwrites = {
+        ctx.guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+        ctx.author: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True, manage_channels=True),
+        ctx.guild.me: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True, manage_channels=True),
+    }
+    kanal = await ctx.guild.create_voice_channel(oda_adi, overwrites=overwrites, reason=f"{ctx.author} icin ozel oda")
+    await ctx.author.move_to(kanal)
+    await ctx.send(embed=discord.Embed(title="Ozel Oda Acildi", description=f"{kanal.name} hazirlandi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="rozetver", help="Kullaniciya profil rozeti verir.")
+@commands.has_permissions(manage_guild=True)
+async def rozetver(ctx, uye: discord.Member = None, *, rozet: str = None):
+    if not uye or not rozet:
+        await ctx.send(embed=kullanim_embedi(".rozetver @uye Yardimsever"))
+        return
+    veri = _rozetler_al(ctx.guild.id)
+    liste = veri.get(str(uye.id), [])
+    if rozet not in liste:
+        liste.append(rozet)
+    veri[str(uye.id)] = liste
+    _rozetler_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="Rozet Verildi", description=f"{uye.mention} kullanicisina `{rozet}` rozeti verildi.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="rozetal", help="Kullanicidan profil rozeti alir.")
+@commands.has_permissions(manage_guild=True)
+async def rozetal(ctx, uye: discord.Member = None, *, rozet: str = None):
+    if not uye or not rozet:
+        await ctx.send(embed=kullanim_embedi(".rozetal @uye Yardimsever"))
+        return
+    veri = _rozetler_al(ctx.guild.id)
+    liste = veri.get(str(uye.id), [])
+    liste = [r for r in liste if r.lower() != rozet.lower()]
+    veri[str(uye.id)] = liste
+    _rozetler_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="Rozet Alindi", description=f"{uye.mention} kullanicisindan `{rozet}` rozeti alindi.", color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="profil-arka-plan", help="Profil komutu icin tema belirler.")
+@commands.has_permissions(manage_guild=True)
+async def profil_arka_plan(ctx, uye: discord.Member = None, *, tema: str = None):
+    if not uye or not tema:
+        await ctx.send(embed=kullanim_embedi(".profil-arka-plan @uye Sakura"))
+        return
+    veri = _profil_tema_al(ctx.guild.id)
+    veri[str(uye.id)] = tema
+    _profil_tema_kaydet(ctx.guild.id, veri)
+    await ctx.send(embed=discord.Embed(title="Profil Temasi Ayarlandi", description=f"{uye.mention} icin tema `{tema}` oldu.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="welcome-say", help="Son katilan uyeleri listeler.")
+async def welcome_say(ctx):
+    uyeler = sorted([m for m in ctx.guild.members if not m.bot], key=lambda m: m.joined_at or datetime.now(timezone.utc), reverse=True)[:10]
+    satirlar = [f"• {u.mention} - {(u.joined_at.strftime('%d.%m.%Y %H:%M') if u.joined_at else '-')}" for u in uyeler]
+    await ctx.send(embed=discord.Embed(title="Son Katilan Uyeler", description="\n".join(satirlar) or "Uye yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+
+
+@bot.command(name="kimnezaman", help="Kullanicinin zaman cizelgesini gosterir.")
+async def kimnezaman(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    ayar = ayarlari_yukle().get(str(ctx.guild.id), {})
+    warnlar = ayar.get("uyarilar", {}).get(str(hedef.id), [])
+    rozetler = _rozetler_al(ctx.guild.id).get(str(hedef.id), [])
+    tema = _profil_tema_al(ctx.guild.id).get(str(hedef.id), "Yok")
+    embed = discord.Embed(title="Kim Ne Zaman", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Kullanici", value=f"{hedef.mention} ({hedef.id})", inline=False)
+    embed.add_field(name="Hesap Acilis", value=hedef.created_at.strftime("%d.%m.%Y %H:%M"), inline=True)
+    embed.add_field(name="Sunucu Katilim", value=hedef.joined_at.strftime("%d.%m.%Y %H:%M") if hedef.joined_at else "-", inline=True)
+    embed.add_field(name="Uyari", value=str(len(warnlar)), inline=True)
+    embed.add_field(name="Rozetler", value=", ".join(rozetler[:10]) if rozetler else "Yok", inline=False)
+    embed.add_field(name="Profil Temasi", value=tema, inline=True)
+    await ctx.send(embed=embed)
 
 
 if __name__ == "__main__":
