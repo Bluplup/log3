@@ -9515,6 +9515,17 @@ def _help_kategori_komutlari():
     }, tum
 
 
+def _help_kategori_emoji(kategori: str) -> str:
+    return {
+        "Ayarlar": "🌈",
+        "Moderasyon": "🛡️",
+        "Roller": "🎨",
+        "Sistemler": "⚙️",
+        "Kullanici": "👤",
+        "Bilgi": "📚",
+    }.get(kategori, "✨")
+
+
 def _help_ana_embed(ctx):
     kategoriler, tum = _help_kategori_komutlari()
     embed = discord.Embed(
@@ -9525,7 +9536,7 @@ def _help_ana_embed(ctx):
     )
     embed.add_field(
         name="Kategoriler",
-        value="\n".join(f"**{ad}**: {sum(1 for k in komutlar if k in tum)}" for ad, komutlar in kategoriler.items()),
+        value="\n".join(f"{_help_kategori_emoji(ad)} **{ad}**: {sum(1 for k in komutlar if k in tum)}" for ad, komutlar in kategoriler.items()),
         inline=True,
     )
     embed.add_field(
@@ -9546,7 +9557,7 @@ def _help_kategori_embed(kategori):
             aciklama = (komut.help or "Bu komut hazir.").strip()
             satirlar.append(f"• **.{komut.name}** - {aciklama}")
     embed = discord.Embed(
-        title=f"{kategori} Komutlari",
+        title=f"{_help_kategori_emoji(kategori)} {kategori} Komutlari",
         description="\n".join(satirlar[:20]) or "Bu kategoride komut yok.",
         color=0x4D96FF,
         timestamp=datetime.now(timezone.utc),
@@ -9559,7 +9570,7 @@ class BasitHelpSelect(discord.ui.Select):
         self.sahip_id = sahip_id
         kategoriler, tum = _help_kategori_komutlari()
         options = [
-            discord.SelectOption(label=ad, description=f"{sum(1 for k in komutlar if k in tum)} komut", value=ad)
+            discord.SelectOption(label=ad, description=f"{sum(1 for k in komutlar if k in tum)} komut", value=ad, emoji=_help_kategori_emoji(ad))
             for ad, komutlar in kategoriler.items()
         ]
         super().__init__(placeholder="Kategori sec", min_values=1, max_values=1, options=options)
