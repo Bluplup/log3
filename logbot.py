@@ -10405,7 +10405,15 @@ except Exception:
 
 async def _ship_avatar_gorseli_al(uye: discord.abc.User) -> Image.Image:
     def _indir():
-        with urllib.request.urlopen(uye.display_avatar.with_size(256).with_format("png").url, timeout=15) as resp:
+        avatar_asset = uye.display_avatar
+        try:
+            avatar_asset = avatar_asset.with_size(256).with_format("png")
+        except Exception:
+            try:
+                avatar_asset = avatar_asset.replace(size=256, format="png")
+            except Exception:
+                avatar_asset = uye.display_avatar
+        with urllib.request.urlopen(avatar_asset.url, timeout=15) as resp:
             return resp.read()
 
     veri = await asyncio.to_thread(_indir)
@@ -10555,33 +10563,38 @@ class ShipView(discord.ui.View):
 
 @bot.command(name="ship", help="Iki kisi icin resimli ship sonucu olusturur.")
 async def ship(ctx, uye1: discord.Member = None, uye2: discord.Member = None):
-    if not uye1 and not uye2:
-        adaylar = [m for m in ctx.guild.members if not m.bot and m.id != ctx.author.id]
-        if adaylar:
-            uye1 = ctx.author
-            uye2 = _random.choice(adaylar)
-    if not uye1 and ctx.message.reference and isinstance(ctx.message.reference.resolved, discord.Message):
-        hedef_yazar = ctx.message.reference.resolved.author
-        if isinstance(hedef_yazar, discord.Member):
-            uye1 = ctx.author
-            uye2 = hedef_yazar
-    if uye1 and not uye2:
-        uye2 = ctx.author if uye1.id != ctx.author.id else None
-    if not uye1 or not uye2:
-        await ctx.send(embed=kullanim_embedi(".ship @uye1 @uye2"))
-        return
-    yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
-    kart = await _ship_kart_olustur(uye1, uye2, yuzde)
-    dosya = discord.File(fp=kart, filename="ship.png")
-    embed = discord.Embed(
-        title="Ship Sonucu",
-        description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
-        color=RENKLER["uyari"],
-        timestamp=datetime.now(timezone.utc),
-    )
-    embed.set_image(url="attachment://ship.png")
-    embed.set_footer(text=zaman_damgasi())
-    await ctx.send(embed=embed, file=dosya, view=ShipView(ctx.author.id, uye1.id, uye2.id))
+    try:
+        if not uye1 and not uye2:
+            adaylar = [m for m in ctx.guild.members if not m.bot and m.id != ctx.author.id]
+            if adaylar:
+                uye1 = ctx.author
+                uye2 = _random.choice(adaylar)
+        if not uye1 and ctx.message.reference and isinstance(ctx.message.reference.resolved, discord.Message):
+            hedef_yazar = ctx.message.reference.resolved.author
+            if isinstance(hedef_yazar, discord.Member):
+                uye1 = ctx.author
+                uye2 = hedef_yazar
+        if uye1 and not uye2:
+            uye2 = ctx.author if uye1.id != ctx.author.id else None
+        if not uye1 or not uye2:
+            await ctx.send(embed=kullanim_embedi(".ship @uye1 @uye2"))
+            return
+        await ctx.trigger_typing()
+        yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
+        kart = await _ship_kart_olustur(uye1, uye2, yuzde)
+        dosya = discord.File(fp=kart, filename="ship.png")
+        embed = discord.Embed(
+            title="Ship Sonucu",
+            description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
+            color=RENKLER["uyari"],
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.set_image(url="attachment://ship.png")
+        embed.set_footer(text=zaman_damgasi())
+        await ctx.send(embed=embed, file=dosya, view=ShipView(ctx.author.id, uye1.id, uye2.id))
+    except Exception as e:
+        print(f"[HATA] ship komutu: {e}")
+        await ctx.send(embed=hata_embedi("Ship Hatasi", f"Ship karti olusturulurken hata oldu: `{e}`"))
 
 
 if __name__ == "__main__":
