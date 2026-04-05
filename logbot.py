@@ -10456,14 +10456,31 @@ def _ship_yorum(yuzde: int) -> str:
     return "Kac, bu ship biraz fazla riskli."
 
 
+def _ship_font(boyut: int, kalin: bool = False):
+    adaylar = [
+        "C:/Windows/Fonts/arialbd.ttf" if kalin else "C:/Windows/Fonts/arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if kalin else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf" if kalin else "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    ]
+    for yol in adaylar:
+        try:
+            return ImageFont.truetype(yol, boyut)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
 async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: int) -> io.BytesIO:
     avatar1 = await _ship_avatar_gorseli_al(uye1)
     avatar2 = await _ship_avatar_gorseli_al(uye2)
 
     tuval = Image.new("RGBA", (960, 420), (60, 8, 18, 255))
     draw = ImageDraw.Draw(tuval)
-    font_buyuk = ImageFont.load_default()
-    font_kucuk = ImageFont.load_default()
+    font_baslik = _ship_font(30, kalin=True)
+    font_isim = _ship_font(26, kalin=True)
+    font_yuzde = _ship_font(34, kalin=True)
+    font_orta = _ship_font(18, kalin=True)
+    font_kucuk = _ship_font(16, kalin=False)
 
     for i in range(420):
         ton = int(50 + (i / 420) * 90)
@@ -10482,14 +10499,14 @@ async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: 
 
     isim1 = uye1.display_name[:16]
     isim2 = uye2.display_name[:16]
-    draw.text((105, 70), isim1, fill=(255, 240, 240, 255), font=font_buyuk)
-    draw.text((685, 70), isim2, fill=(255, 240, 240, 255), font=font_buyuk)
+    draw.text((105, 64), isim1, fill=(255, 240, 240, 255), font=font_isim)
+    draw.text((685, 64), isim2, fill=(255, 240, 240, 255), font=font_isim)
 
     kalp_dolum = int((190 * max(0, min(100, yuzde))) / 100)
     draw.rounded_rectangle((442, 320 - kalp_dolum, 518, 320), radius=14, fill=(255, 173, 181, 255))
     draw.rounded_rectangle((442, 130, 518, 320), radius=14, outline=(255, 205, 210, 255), width=3)
-    draw.text((445, 286), f"{yuzde}%", fill=(255, 255, 255, 255), font=font_buyuk)
-    draw.text((453, 72), "LOVE", fill=(255, 225, 225, 255), font=font_kucuk)
+    draw.text((438, 276), f"{yuzde}%", fill=(255, 255, 255, 255), font=font_yuzde)
+    draw.text((449, 72), "LOVE", fill=(255, 225, 225, 255), font=font_orta)
 
     for index in range(5):
         y = 124 + index * 40
@@ -10503,7 +10520,7 @@ async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: 
         draw.polygon([(565, y + 8), (593, y + 8), (579, y + 28)], fill=renk)
 
     yorum = _ship_yorum(yuzde)
-    draw.text((40, 30), "PREMIUM SHIP", fill=(255, 235, 235, 255), font=font_buyuk)
+    draw.text((40, 28), "PREMIUM SHIP", fill=(255, 235, 235, 255), font=font_baslik)
     draw.text((40, 378), yorum[:72], fill=(255, 230, 230, 255), font=font_kucuk)
 
     buffer = io.BytesIO()
@@ -10515,16 +10532,13 @@ async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: 
 async def _ship_mesaji_gonder(hedef, uye1: discord.Member, uye2: discord.Member, yuzde: int, sahip_id: int):
     kart = await _ship_kart_olustur(uye1, uye2, yuzde)
     dosya = discord.File(fp=kart, filename="ship.png")
-    ship_renk = RENKLER.get("uyari", RENKLER.get("rol", RENKLER.get("bilgi", 0xE74C3C)))
-    embed = discord.Embed(
-        title="Ship Sonucu",
-        description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
-        color=ship_renk,
-        timestamp=datetime.now(timezone.utc),
+    icerik = (
+        f"**Ship Sonucu**\n"
+        f"{uye1.mention} x {uye2.mention}\n"
+        f"Uyum: **{yuzde}%**\n"
+        f"{_ship_yorum(yuzde)}"
     )
-    embed.set_image(url="attachment://ship.png")
-    embed.set_footer(text=zaman_damgasi())
-    await hedef.send(embed=embed, file=dosya, view=ShipView(sahip_id, uye1.id, uye2.id))
+    await hedef.send(content=icerik, file=dosya, view=ShipView(sahip_id, uye1.id, uye2.id))
 
 
 class ShipView(discord.ui.View):
@@ -10551,16 +10565,13 @@ class ShipView(discord.ui.View):
         yeni_yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id, rastgele=True)
         kart = await _ship_kart_olustur(uye1, uye2, yeni_yuzde)
         dosya = discord.File(fp=kart, filename="ship.png")
-        ship_renk = RENKLER.get("uyari", RENKLER.get("rol", RENKLER.get("bilgi", 0xE74C3C)))
-        embed = discord.Embed(
-            title="Ship Sonucu",
-            description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yeni_yuzde}%`\n{_ship_yorum(yeni_yuzde)}",
-            color=ship_renk,
-            timestamp=datetime.now(timezone.utc),
+        icerik = (
+            f"**Ship Sonucu**\n"
+            f"{uye1.mention} x {uye2.mention}\n"
+            f"Uyum: **{yeni_yuzde}%**\n"
+            f"{_ship_yorum(yeni_yuzde)}"
         )
-        embed.set_image(url="attachment://ship.png")
-        embed.set_footer(text=zaman_damgasi())
-        await interaction.message.edit(embed=embed, attachments=[dosya], view=self)
+        await interaction.message.edit(content=icerik, embed=None, attachments=[dosya], view=self)
 
     @discord.ui.button(label="Sil", style=discord.ButtonStyle.danger)
     async def sil(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -10593,16 +10604,13 @@ async def ship(ctx, uye1: discord.Member = None, uye2: discord.Member = None):
             yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
             kart = await _ship_kart_olustur(uye1, uye2, yuzde)
         dosya = discord.File(fp=kart, filename="ship.png")
-        ship_renk = RENKLER.get("uyari", RENKLER.get("rol", RENKLER.get("bilgi", 0xE74C3C)))
-        embed = discord.Embed(
-            title="Ship Sonucu",
-            description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
-            color=ship_renk,
-            timestamp=datetime.now(timezone.utc),
+        icerik = (
+            f"**Ship Sonucu**\n"
+            f"{uye1.mention} x {uye2.mention}\n"
+            f"Uyum: **{yuzde}%**\n"
+            f"{_ship_yorum(yuzde)}"
         )
-        embed.set_image(url="attachment://ship.png")
-        embed.set_footer(text=zaman_damgasi())
-        await ctx.send(embed=embed, file=dosya, view=ShipView(ctx.author.id, uye1.id, uye2.id))
+        await ctx.send(content=icerik, file=dosya, view=ShipView(ctx.author.id, uye1.id, uye2.id))
     except Exception as e:
         print(f"[HATA] ship komutu: {e}")
         await ctx.send(embed=hata_embedi("Ship Hatasi", f"Ship karti olusturulurken hata oldu: `{e}`"))
