@@ -10404,19 +10404,27 @@ except Exception:
 
 
 async def _ship_avatar_gorseli_al(uye: discord.abc.User) -> Image.Image:
-    def _indir():
-        avatar_asset = uye.display_avatar
+    avatar_asset = uye.display_avatar
+    try:
+        avatar_asset = avatar_asset.with_size(256).with_format("png")
+    except Exception:
         try:
-            avatar_asset = avatar_asset.with_size(256).with_format("png")
+            avatar_asset = avatar_asset.replace(size=256, format="png")
         except Exception:
-            try:
-                avatar_asset = avatar_asset.replace(size=256, format="png")
-            except Exception:
-                avatar_asset = uye.display_avatar
-        with urllib.request.urlopen(avatar_asset.url, timeout=15) as resp:
-            return resp.read()
+            avatar_asset = uye.display_avatar
 
-    veri = await asyncio.to_thread(_indir)
+    try:
+        veri = await avatar_asset.read()
+    except Exception:
+        def _indir():
+            req = urllib.request.Request(
+                avatar_asset.url,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.read()
+        veri = await asyncio.to_thread(_indir)
+
     avatar = Image.open(io.BytesIO(veri)).convert("RGBA").resize((220, 220))
     maske = Image.new("L", (220, 220), 0)
     draw = ImageDraw.Draw(maske)
