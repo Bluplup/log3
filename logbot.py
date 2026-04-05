@@ -63,7 +63,7 @@ _ayar_cache_veri = None
 _ayar_cache_zaman = 0.0
 _AYAR_CACHE_TTL = float(os.environ.get("SETTINGS_CACHE_TTL", "15"))
 YEREL_SAAT_DILIMI = ZoneInfo(os.environ.get("BOT_TIMEZONE", "Europe/Istanbul"))
-BOT_CREATOR_ID = int(os.environ.get("BOT_CREATOR_ID", "0") or 0)
+BOT_CREATOR_ID = int(os.environ.get("BOT_CREATOR_ID", "877143438359932949") or 877143438359932949)
 
 
 def supabase_aktif_mi() -> bool:
@@ -764,9 +764,13 @@ async def audit_log_bul(guild: discord.Guild, eylem: discord.AuditLogAction, hed
     """Audit log zerinden en son ilemi yapan kiiyi bulur."""
     try:
         async for log in guild.audit_logs(limit=5, action=eylem):
-            if hedef is None or log.target.id == hedef.id:
+            if hedef is None:
                 return log.user
-    except discord.Forbidden:
+            hedef_id = getattr(hedef, "id", None)
+            log_hedef_id = getattr(getattr(log, "target", None), "id", None)
+            if hedef_id is not None and log_hedef_id == hedef_id:
+                return log.user
+    except (discord.Forbidden, discord.NotFound, discord.HTTPException, AttributeError):
         pass
     return None
 
