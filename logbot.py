@@ -30,6 +30,7 @@ import socket
 import urllib.error
 import urllib.request
 from flask import Flask
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from threading import Thread, RLock
 import time
 
@@ -9560,7 +9561,7 @@ def _help_kategori_komutlari():
         "Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "jail", "unjail", "cezagecmisi", "cezasil", "cezapanel", "yetkiceza", "kanalkilit", "kanalac"],
         "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "yetkiver", "yetkial", "temprol", "roldagit", "roltemizle", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler", "rozetver", "rozetal", "profil-arka-plan"],
         "Sistemler": ["ticketpanel", "ticketkur", "partner-kur", "partner-kapat", "partnerpuan", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "otocevap-kapat", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "spam-koruma-durum", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "levelkur", "levelkapat", "basvuru-panel", "itiraz-panel", "afis", "ses-kanal-ac", "ozeloda"],
-        "Kullanici": ["profil", "seviye", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "not-temizle", "destekistek", "welcome-say", "kimnezaman"],
+        "Kullanici": ["profil", "seviye", "ship", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "not-temizle", "destekistek", "welcome-say", "kimnezaman"],
         "Bilgi": ["sunucupanel", "yetkilipanel", "seviyetop", "sesistatistik", "mesajistatistik", "leaderboard", "say", "kanalbilgi", "komutbilgi", "ping"],
     }, tum
 
@@ -10394,6 +10395,193 @@ async def say_detayli(ctx):
     embed.add_field(name="Seste", value=str(seste), inline=True)
     embed.add_field(name="Boost", value=str(boostlu), inline=True)
     await ctx.send(embed=embed)
+
+
+try:
+    bot.remove_command("ship")
+except Exception:
+    pass
+
+
+async def _ship_avatar_gorseli_al(uye: discord.abc.User) -> Image.Image:
+    def _indir():
+        with urllib.request.urlopen(uye.display_avatar.with_size(256).with_format("png").url, timeout=15) as resp:
+            return resp.read()
+
+    veri = await asyncio.to_thread(_indir)
+    avatar = Image.open(io.BytesIO(veri)).convert("RGBA").resize((220, 220))
+    maske = Image.new("L", (220, 220), 0)
+    draw = ImageDraw.Draw(maske)
+    draw.rounded_rectangle((0, 0, 219, 219), radius=28, fill=255)
+    sonuc = ImageOps.fit(avatar, (220, 220), centering=(0.5, 0.5)).convert("RGBA")
+    sonuc.putalpha(maske)
+    return sonuc
+
+
+def _ship_yuzde_hesapla(uye1_id: int, uye2_id: int, rastgele: bool = False) -> int:
+    if rastgele:
+        return _random.randint(1, 100)
+    kucuk, buyuk = sorted([int(uye1_id), int(uye2_id)])
+    tohum = f"{kucuk}:{buyuk}:{datetime.now(YEREL_SAAT_DILIMI).strftime('%Y-%m-%d')}"
+    return (sum(ord(ch) for ch in tohum) % 81) + 20
+
+
+def _ship_yorum(yuzde: int) -> str:
+    if yuzde >= 98:
+        return "En iyi ship, direkt nikah masasi."
+    if yuzde >= 90:
+        return "Asiri iyi, kalpler bosuna atmiyor."
+    if yuzde >= 75:
+        return "Fena degil, enerji baya tutuyor."
+    if yuzde >= 55:
+        return "Olur gibi, biraz daha zorlanir."
+    if yuzde >= 35:
+        return "Eh iste, biraz karisik."
+    return "Kac, bu ship biraz fazla riskli."
+
+
+async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: int) -> io.BytesIO:
+    avatar1 = await _ship_avatar_gorseli_al(uye1)
+    avatar2 = await _ship_avatar_gorseli_al(uye2)
+
+    tuval = Image.new("RGBA", (960, 420), (60, 8, 18, 255))
+    draw = ImageDraw.Draw(tuval)
+    font_buyuk = ImageFont.load_default()
+    font_kucuk = ImageFont.load_default()
+
+    for i in range(420):
+        ton = int(50 + (i / 420) * 90)
+        draw.line((0, i, 960, i), fill=(110 + ton, 8, 20 + ton // 4, 255))
+
+    for x in range(40, 930, 70):
+        draw.ellipse((x, 18, x + 12, 30), fill=(255, 210, 220, 140))
+    draw.rounded_rectangle((24, 24, 936, 396), radius=32, outline=(255, 120, 140, 255), width=6, fill=(92, 6, 16, 230))
+    draw.rounded_rectangle((70, 110, 310, 350), radius=28, outline=(255, 110, 110, 255), width=5, fill=(70, 10, 20, 255))
+    draw.rounded_rectangle((650, 110, 890, 350), radius=28, outline=(255, 110, 110, 255), width=5, fill=(70, 10, 20, 255))
+    draw.rounded_rectangle((405, 105, 555, 355), radius=30, outline=(255, 130, 130, 255), width=5, fill=(120, 15, 28, 255))
+    draw.rounded_rectangle((426, 120, 534, 325), radius=18, outline=(255, 180, 190, 255), width=3, fill=(96, 10, 24, 255))
+
+    tuval.alpha_composite(avatar1, (80, 120))
+    tuval.alpha_composite(avatar2, (660, 120))
+
+    isim1 = uye1.display_name[:16]
+    isim2 = uye2.display_name[:16]
+    draw.text((105, 70), isim1, fill=(255, 240, 240, 255), font=font_buyuk)
+    draw.text((685, 70), isim2, fill=(255, 240, 240, 255), font=font_buyuk)
+
+    kalp_dolum = int((190 * max(0, min(100, yuzde))) / 100)
+    draw.rounded_rectangle((442, 320 - kalp_dolum, 518, 320), radius=14, fill=(255, 173, 181, 255))
+    draw.rounded_rectangle((442, 130, 518, 320), radius=14, outline=(255, 205, 210, 255), width=3)
+    draw.text((445, 286), f"{yuzde}%", fill=(255, 255, 255, 255), font=font_buyuk)
+    draw.text((453, 72), "LOVE", fill=(255, 225, 225, 255), font=font_kucuk)
+
+    for index in range(5):
+        y = 124 + index * 40
+        aktif = index < max(1, round(yuzde / 20))
+        renk = (255, 90, 120, 255) if aktif else (255, 220, 220, 120)
+        draw.ellipse((360, y, 376, y + 16), fill=renk)
+        draw.ellipse((372, y, 388, y + 16), fill=renk)
+        draw.polygon([(360, y + 8), (388, y + 8), (374, y + 28)], fill=renk)
+        draw.ellipse((565, y, 581, y + 16), fill=renk)
+        draw.ellipse((577, y, 593, y + 16), fill=renk)
+        draw.polygon([(565, y + 8), (593, y + 8), (579, y + 28)], fill=renk)
+
+    yorum = _ship_yorum(yuzde)
+    draw.text((40, 30), "PREMIUM SHIP", fill=(255, 235, 235, 255), font=font_buyuk)
+    draw.text((40, 378), yorum[:72], fill=(255, 230, 230, 255), font=font_kucuk)
+
+    buffer = io.BytesIO()
+    tuval.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
+
+
+async def _ship_mesaji_gonder(hedef, uye1: discord.Member, uye2: discord.Member, yuzde: int, sahip_id: int):
+    kart = await _ship_kart_olustur(uye1, uye2, yuzde)
+    dosya = discord.File(fp=kart, filename="ship.png")
+    embed = discord.Embed(
+        title="Ship Sonucu",
+        description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
+        color=RENKLER["uyari"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.set_image(url="attachment://ship.png")
+    embed.set_footer(text=zaman_damgasi())
+    await hedef.send(embed=embed, file=dosya, view=ShipView(sahip_id, uye1.id, uye2.id))
+
+
+class ShipView(discord.ui.View):
+    def __init__(self, sahip_id: int, uye1_id: int, uye2_id: int):
+        super().__init__(timeout=300)
+        self.sahip_id = sahip_id
+        self.uye1_id = uye1_id
+        self.uye2_id = uye2_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.sahip_id:
+            await interaction.response.send_message("Bu menuyu sadece komutu yazan kisi kullanabilir.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Tekrar Shiple", style=discord.ButtonStyle.primary)
+    async def reroll(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uye1 = interaction.guild.get_member(self.uye1_id) if interaction.guild else None
+        uye2 = interaction.guild.get_member(self.uye2_id) if interaction.guild else None
+        if not uye1 or not uye2:
+            await interaction.response.send_message("Uyeler bulunamadi.", ephemeral=True)
+            return
+        await interaction.response.defer()
+        yeni_yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id, rastgele=True)
+        kart = await _ship_kart_olustur(uye1, uye2, yeni_yuzde)
+        dosya = discord.File(fp=kart, filename="ship.png")
+        embed = discord.Embed(
+            title="Ship Sonucu",
+            description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yeni_yuzde}%`\n{_ship_yorum(yeni_yuzde)}",
+            color=RENKLER["uyari"],
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.set_image(url="attachment://ship.png")
+        embed.set_footer(text=zaman_damgasi())
+        await interaction.message.edit(embed=embed, attachments=[dosya], view=self)
+
+    @discord.ui.button(label="Sil", style=discord.ButtonStyle.danger)
+    async def sil(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        try:
+            await interaction.message.delete()
+        except Exception:
+            pass
+
+
+@bot.command(name="ship", help="Iki kisi icin resimli ship sonucu olusturur.")
+async def ship(ctx, uye1: discord.Member = None, uye2: discord.Member = None):
+    if not uye1 and not uye2:
+        adaylar = [m for m in ctx.guild.members if not m.bot and m.id != ctx.author.id]
+        if adaylar:
+            uye1 = ctx.author
+            uye2 = _random.choice(adaylar)
+    if not uye1 and ctx.message.reference and isinstance(ctx.message.reference.resolved, discord.Message):
+        hedef_yazar = ctx.message.reference.resolved.author
+        if isinstance(hedef_yazar, discord.Member):
+            uye1 = ctx.author
+            uye2 = hedef_yazar
+    if uye1 and not uye2:
+        uye2 = ctx.author if uye1.id != ctx.author.id else None
+    if not uye1 or not uye2:
+        await ctx.send(embed=kullanim_embedi(".ship @uye1 @uye2"))
+        return
+    yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
+    kart = await _ship_kart_olustur(uye1, uye2, yuzde)
+    dosya = discord.File(fp=kart, filename="ship.png")
+    embed = discord.Embed(
+        title="Ship Sonucu",
+        description=f"{uye1.mention} x {uye2.mention}\n**Uyum:** `{yuzde}%`\n{_ship_yorum(yuzde)}",
+        color=RENKLER["uyari"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.set_image(url="attachment://ship.png")
+    embed.set_footer(text=zaman_damgasi())
+    await ctx.send(embed=embed, file=dosya, view=ShipView(ctx.author.id, uye1.id, uye2.id))
 
 
 if __name__ == "__main__":
