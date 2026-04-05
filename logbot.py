@@ -10579,9 +10579,9 @@ async def ship(ctx, uye1: discord.Member = None, uye2: discord.Member = None):
         if not uye1 or not uye2:
             await ctx.send(embed=kullanim_embedi(".ship @uye1 @uye2"))
             return
-        await ctx.trigger_typing()
-        yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
-        kart = await _ship_kart_olustur(uye1, uye2, yuzde)
+        async with ctx.typing():
+            yuzde = _ship_yuzde_hesapla(uye1.id, uye2.id)
+            kart = await _ship_kart_olustur(uye1, uye2, yuzde)
         dosya = discord.File(fp=kart, filename="ship.png")
         embed = discord.Embed(
             title="Ship Sonucu",
