@@ -5694,6 +5694,14 @@ def _sayac_ayar_kaydet(guild_id: int, veri: dict):
     _guild_ayar_kismi_kaydet(guild_id, "sayac_sistemi", veri)
 
 
+def _destekistek_ayar_al(guild_id: int) -> dict:
+    return _guild_ayar_al(guild_id).get("destekistek", {"log_kanal_id": None})
+
+
+def _destekistek_ayar_kaydet(guild_id: int, veri: dict):
+    _guild_ayar_kismi_kaydet(guild_id, "destekistek", veri)
+
+
 def _notlar_al(guild_id: int) -> dict:
     return _guild_ayar_al(guild_id).get("uye_notlari", {})
 
@@ -9180,7 +9188,49 @@ async def destek_istek(ctx, *, metin: str = None):
     if not metin:
         await ctx.send(embed=kullanim_embedi(".destekistek Yardim lazim"))
         return
-    await ctx.send(embed=discord.Embed(title=" Destek Istegi", description=f"{ctx.author.mention}: {metin}", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+    ayar = _destekistek_ayar_al(ctx.guild.id)
+    log_kanal = ctx.guild.get_channel(int(ayar.get("log_kanal_id") or 0)) if ayar.get("log_kanal_id") else None
+
+    kullanici_embed = discord.Embed(
+        title="Destek Istegin Alindi",
+        description="Mesajin yetkililere iletildi. En kisa surede donus yapilacak.",
+        color=RENKLER["basari"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    kullanici_embed.add_field(name="Mesaj", value=metin[:1024], inline=False)
+    if log_kanal:
+        kullanici_embed.add_field(name="Log Kanali", value=log_kanal.mention, inline=True)
+    await ctx.send(embed=kullanici_embed)
+
+    if log_kanal:
+        log_embed = discord.Embed(
+            title="Yeni Destek Istegi",
+            description="Bir kullanici destek istegi gonderdi.",
+            color=RENKLER["bilgi"],
+            timestamp=datetime.now(timezone.utc),
+        )
+        log_embed.add_field(name="Kullanici", value=f"{ctx.author.mention}\n`{ctx.author}`", inline=True)
+        log_embed.add_field(name="Kullanici ID", value=str(ctx.author.id), inline=True)
+        log_embed.add_field(name="Kanal", value=ctx.channel.mention, inline=True)
+        log_embed.add_field(name="Sunucu", value=ctx.guild.name, inline=True)
+        log_embed.add_field(name="Mesaj ID", value=str(ctx.message.id), inline=True)
+        log_embed.add_field(name="Zaman", value=zaman_damgasi(), inline=True)
+        log_embed.add_field(name="Icerik", value=metin[:1024], inline=False)
+        log_embed.add_field(name="Mesaja Git", value=f"[Tikla]({ctx.message.jump_url})", inline=False)
+        log_embed.set_thumbnail(url=ctx.author.display_avatar.url)
+        await log_kanal.send(embed=log_embed)
+
+
+@bot.command(name="destekistek-log", help="Destek istekleri icin log kanali ayarlar.")
+@commands.has_permissions(manage_guild=True)
+async def destekistek_log(ctx, kanal: discord.TextChannel = None):
+    if not kanal:
+        ayar = _destekistek_ayar_al(ctx.guild.id)
+        aktif = ctx.guild.get_channel(int(ayar.get("log_kanal_id") or 0)) if ayar.get("log_kanal_id") else None
+        await ctx.send(embed=discord.Embed(title="Destek Istek Logu", description=aktif.mention if aktif else "Ayarlanmamis", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc)))
+        return
+    _destekistek_ayar_kaydet(ctx.guild.id, {"log_kanal_id": kanal.id})
+    await ctx.send(embed=discord.Embed(title="Destek Istek Logu Ayarlandi", description=f"Yeni destek istekleri {kanal.mention} kanalina gidecek.", color=RENKLER["basari"], timestamp=datetime.now(timezone.utc)))
 
 
 @bot.command(name="partnerpuan")
@@ -9506,12 +9556,12 @@ if __name__ == "__main__":
 def _help_kategori_komutlari():
     tum = {c.name: c for c in bot.commands if not c.hidden}
     return {
-        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "sayac-kapat", "yasakli-komut", "rollog"],
+        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "sayac-kapat", "yasakli-komut", "rollog", "destekistek-log"],
         "Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "jail", "unjail", "cezagecmisi", "cezasil", "cezapanel", "yetkiceza", "kanalkilit", "kanalac"],
         "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "yetkiver", "yetkial", "temprol", "roldagit", "roltemizle", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler", "rozetver", "rozetal", "profil-arka-plan"],
         "Sistemler": ["ticketpanel", "ticketkur", "partner-kur", "partner-kapat", "partnerpuan", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "otocevap-kapat", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "spam-koruma-durum", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "levelkur", "levelkapat", "basvuru-panel", "itiraz-panel", "afis", "ses-kanal-ac", "ozeloda"],
-        "Kullanici": ["profil", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "not-temizle", "destekistek", "welcome-say", "kimnezaman"],
-        "Bilgi": ["sunucupanel", "yetkilipanel", "sesistatistik", "mesajistatistik", "leaderboard", "say", "kanalbilgi", "komutbilgi", "ping"],
+        "Kullanici": ["profil", "seviye", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "not-temizle", "destekistek", "welcome-say", "kimnezaman"],
+        "Bilgi": ["sunucupanel", "yetkilipanel", "seviyetop", "sesistatistik", "mesajistatistik", "leaderboard", "say", "kanalbilgi", "komutbilgi", "ping"],
     }, tum
 
 
@@ -9960,6 +10010,389 @@ async def kimnezaman(ctx, uye: discord.Member = None):
     embed.add_field(name="Uyari", value=str(len(warnlar)), inline=True)
     embed.add_field(name="Rozetler", value=", ".join(rozetler[:10]) if rozetler else "Yok", inline=False)
     embed.add_field(name="Profil Temasi", value=tema, inline=True)
+    await ctx.send(embed=embed)
+
+
+for _detay_sil in (
+    "profil",
+    "seviye",
+    "level",
+    "rank",
+    "seviyetop",
+    "sunucupanel",
+    "yetkilipanel",
+    "avatar",
+    "banner",
+    "rolbilgi",
+    "kanalbilgi",
+    "kullanicibilgi",
+    "sesistatistik",
+    "mesajistatistik",
+    "leaderboard",
+    "say",
+):
+    try:
+        bot.remove_command(_detay_sil)
+    except Exception:
+        pass
+
+
+def _detayli_tarih(dt: datetime | None) -> str:
+    if not dt:
+        return "Bilinmiyor"
+    try:
+        return dt.astimezone().strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return dt.strftime("%d.%m.%Y %H:%M")
+
+
+def _kisa_sayi(deger: int) -> str:
+    deger = int(deger)
+    if deger >= 1_000_000:
+        return f"{deger / 1_000_000:.1f}M".replace(".0", "")
+    if deger >= 1_000:
+        return f"{deger / 1_000:.1f}K".replace(".0", "")
+    return str(deger)
+
+
+def _rol_listesi_kisa(roller: list[discord.Role], limit: int = 12) -> str:
+    filtreli = [r.mention for r in sorted(roller, key=lambda r: r.position, reverse=True) if not r.is_default()]
+    if not filtreli:
+        return "Yok"
+    if len(filtreli) <= limit:
+        return ", ".join(filtreli)
+    kalan = len(filtreli) - limit
+    return ", ".join(filtreli[:limit]) + f" ve {kalan} rol daha"
+
+
+def _uye_rozet_metin(guild_id: int, user_id: int) -> str:
+    rozetler = _rozetler_al(guild_id).get(str(user_id), [])
+    if not rozetler:
+        return "Yok"
+    return ", ".join(str(r) for r in rozetler[:8])
+
+
+def _profil_embed_olustur(hedef: discord.Member) -> discord.Embed:
+    xp_veri = _xp_veri_al(hedef.guild.id, hedef.id)
+    profil = _profil_istat_al(hedef.guild.id, hedef.id)
+    ayarlar = ayarlari_yukle().get(str(hedef.guild.id), {})
+    tum_xp_veri = ayarlar.get("level_xp", {})
+    toplam_xp = _toplam_xp_hesapla(int(xp_veri.get("level", 0)), int(xp_veri.get("xp", 0)))
+    siralama = sorted(
+        tum_xp_veri.items(),
+        key=lambda item: _toplam_xp_hesapla(int(item[1].get("level", 0)), int(item[1].get("xp", 0))),
+        reverse=True,
+    )
+    sira = next((index for index, (uye_id, _) in enumerate(siralama, start=1) if uye_id == str(hedef.id)), None)
+    warnlar = ayarlar.get("uyarilar", {}).get(str(hedef.id), [])
+    tema = _profil_tema_al(hedef.guild.id).get(str(hedef.id), "Varsayilan")
+    level = int(xp_veri.get("level", 0))
+    xp = int(xp_veri.get("xp", 0))
+    hedef_xp = _xp_hedef(level)
+
+    embed = discord.Embed(
+        title=f"{hedef.display_name} Profil Karti",
+        description=f"{hedef.mention} icin detayli uye ozeti",
+        color=hedef.color if hedef.color.value else RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="Level", value=f"**{level}**", inline=True)
+    embed.add_field(name="XP", value=f"**{xp} / {hedef_xp}**", inline=True)
+    embed.add_field(name="Seviye Sirasi", value=f"**#{sira or '-'}**", inline=True)
+    embed.add_field(name="Toplam XP", value=f"**{_kisa_sayi(toplam_xp)}**", inline=True)
+    embed.add_field(name="Mesaj", value=f"**{_kisa_sayi(profil.get('message_count', 0))}**", inline=True)
+    embed.add_field(name="Ses", value=f"**{_sureyi_formatla(int(profil.get('voice_seconds', 0)))}**", inline=True)
+    embed.add_field(name="Warn", value=f"**{len(warnlar)}**", inline=True)
+    embed.add_field(name="Tema", value=f"**{tema}**", inline=True)
+    embed.add_field(name="Rozetler", value=_uye_rozet_metin(hedef.guild.id, hedef.id), inline=False)
+    embed.add_field(name="Roller", value=_rol_listesi_kisa(hedef.roles), inline=False)
+    embed.add_field(name="Hesap Acilis", value=_detayli_tarih(hedef.created_at), inline=True)
+    embed.add_field(name="Sunucu Katilim", value=_detayli_tarih(hedef.joined_at), inline=True)
+    embed.add_field(name="Durum", value="Timeout Var" if hedef.timed_out_until and hedef.timed_out_until > datetime.now(timezone.utc) else "Normal", inline=True)
+    if hedef.display_avatar:
+        embed.set_thumbnail(url=hedef.display_avatar.url)
+    embed.set_footer(text=f"{hedef} | ID: {hedef.id}")
+    return embed
+
+
+@bot.command(name="profil", help="Detayli profil kartini gosterir.")
+async def profil_detayli(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    await ctx.send(embed=_profil_embed_olustur(hedef))
+
+
+@bot.command(name="seviye", aliases=["level", "rank"], help="Detayli seviye kartini gosterir.")
+async def seviye_detayli(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    await ctx.send(embed=_profil_embed_olustur(hedef))
+
+
+@bot.command(name="seviyetop", help="Sunucunun seviye siralamasini gosterir.")
+async def seviyetop(ctx):
+    tum_xp_veri = ayarlari_yukle().get(str(ctx.guild.id), {}).get("level_xp", {})
+    siralama = sorted(
+        tum_xp_veri.items(),
+        key=lambda item: _toplam_xp_hesapla(int(item[1].get("level", 0)), int(item[1].get("xp", 0))),
+        reverse=True,
+    )
+    satirlar = []
+    for index, (uye_id, veri) in enumerate(siralama[:15], start=1):
+        uye = ctx.guild.get_member(int(uye_id))
+        if not uye:
+            continue
+        toplam_xp = _toplam_xp_hesapla(int(veri.get("level", 0)), int(veri.get("xp", 0)))
+        profil = _profil_istat_al(ctx.guild.id, uye.id)
+        satirlar.append(
+            f"**#{index}** {uye.mention}\n"
+            f"Level: **{int(veri.get('level', 0))}** | Toplam XP: **{_kisa_sayi(toplam_xp)}** | "
+            f"Mesaj: **{_kisa_sayi(profil.get('message_count', 0))}**"
+        )
+    embed = discord.Embed(
+        title="Seviye Top",
+        description="\n\n".join(satirlar) or "Henuz level verisi yok.",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.set_footer(text=f"Toplam kayitli uye: {len(tum_xp_veri)}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="sunucupanel", help="Sunucunun detayli ozetini gosterir.")
+async def sunucupanel_detayli(ctx):
+    g = ctx.guild
+    uyeler = [m for m in g.members if not m.bot]
+    botlar = [m for m in g.members if m.bot]
+    metin_kanal = len(g.text_channels)
+    ses_kanal = len(g.voice_channels)
+    kategori = len(g.categories)
+    aktif_seste = sum(1 for m in uyeler if m.voice and m.voice.channel)
+    embed = discord.Embed(
+        title=f"{g.name} Sunucu Paneli",
+        description="Sunucuya ait genel ozet ve canli istatistikler",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="Uye Dagilimi", value=f"Toplam: **{g.member_count}**\nGercek: **{len(uyeler)}**\nBot: **{len(botlar)}**", inline=True)
+    embed.add_field(name="Kanal Dagilimi", value=f"Metin: **{metin_kanal}**\nSes: **{ses_kanal}**\nKategori: **{kategori}**", inline=True)
+    embed.add_field(name="Sunucu Bilgisi", value=f"Rol: **{len(g.roles)}**\nEmoji: **{len(g.emojis)}**\nBoost: **{g.premium_subscription_count or 0}**", inline=True)
+    embed.add_field(name="Aktiflik", value=f"Seste Olan: **{aktif_seste}**\nOwner: {g.owner.mention if g.owner else 'Yok'}", inline=True)
+    embed.add_field(name="Kurulus", value=_detayli_tarih(g.created_at), inline=True)
+    embed.add_field(name="AFK Kanali", value=g.afk_channel.mention if g.afk_channel else "Yok", inline=True)
+    if g.icon:
+        embed.set_thumbnail(url=g.icon.url)
+    embed.set_footer(text=f"Sunucu ID: {g.id}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="yetkilipanel", help="Yetkililerin detayli ozetini gosterir.")
+@commands.has_permissions(manage_guild=True)
+async def yetkilipanel_detayli(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {})
+    warnlar = ayarlar.get("uyarilar", {})
+    partnerler = ayarlar.get("yetkili_partnerleri", {})
+    satirlar = []
+    for uye in ctx.guild.members:
+        if uye.bot:
+            continue
+        perms = uye.guild_permissions
+        if perms.administrator or perms.ban_members or perms.kick_members or perms.moderate_members or perms.manage_guild:
+            profil = _profil_istat_al(ctx.guild.id, uye.id)
+            satirlar.append(
+                (
+                    uye,
+                    f"{uye.mention}\n"
+                    f"Warn: **{len(warnlar.get(str(uye.id), []))}** | "
+                    f"Partner: **{int(partnerler.get(str(uye.id), {}).get('sayi', 0))}** | "
+                    f"Mesaj: **{_kisa_sayi(profil.get('message_count', 0))}** | "
+                    f"Ses: **{_sureyi_formatla(int(profil.get('voice_seconds', 0)))}**"
+                ),
+            )
+    satirlar.sort(key=lambda item: item[0].top_role.position, reverse=True)
+    embed = discord.Embed(
+        title="Yetkili Paneli",
+        description="\n\n".join(metin for _, metin in satirlar[:12]) or "Yetkili bulunamadi.",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.set_footer(text=f"Toplam yetkili: {len(satirlar)}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="avatar", help="Kullanicinin buyuk avatarini gosterir.")
+async def avatar_detayli(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    embed = discord.Embed(
+        title=f"{hedef.display_name} Avatar",
+        description=f"[Avatar linki]({hedef.display_avatar.url})",
+        color=hedef.color if hedef.color.value else RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.set_image(url=hedef.display_avatar.url)
+    embed.set_footer(text=f"{hedef} | ID: {hedef.id}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="banner", help="Kullanicinin bannerini gosterir.")
+async def banner_detayli(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    try:
+        kullanici = await bot.fetch_user(hedef.id)
+    except Exception:
+        kullanici = hedef
+    banner = getattr(kullanici, "banner", None)
+    if not banner:
+        await ctx.send(embed=hata_embedi("Banner Yok", f"{hedef.mention} kullanicisinda banner bulunmuyor."))
+        return
+    embed = discord.Embed(
+        title=f"{hedef.display_name} Banner",
+        description=f"[Banner linki]({banner.url})",
+        color=hedef.color if hedef.color.value else RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.set_image(url=banner.url)
+    embed.set_footer(text=f"{hedef} | ID: {hedef.id}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="rolbilgi", help="Rol hakkinda detayli bilgi verir.")
+async def rolbilgi_detayli(ctx, rol: discord.Role = None):
+    if not rol:
+        await ctx.send(embed=kullanim_embedi(".rolbilgi @rol"))
+        return
+    izinler = [ad.replace("_", " ").title() for ad, aktif in rol.permissions if aktif]
+    embed = discord.Embed(
+        title=f"Rol Bilgisi - {rol.name}",
+        color=rol.color if rol.color.value else RENKLER["rol"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="ID", value=f"`{rol.id}`", inline=True)
+    embed.add_field(name="Pozisyon", value=str(rol.position), inline=True)
+    embed.add_field(name="Uye Sayisi", value=str(len(rol.members)), inline=True)
+    embed.add_field(name="Hex Renk", value=str(rol.color), inline=True)
+    embed.add_field(name="Ayrica Goster", value="Evet" if rol.hoist else "Hayir", inline=True)
+    embed.add_field(name="Etiketlenebilir", value="Evet" if rol.mentionable else "Hayir", inline=True)
+    embed.add_field(name="Olusturulma", value=_detayli_tarih(rol.created_at), inline=False)
+    embed.add_field(name="Izinler", value=", ".join(izinler[:20]) if izinler else "Ozel izin yok", inline=False)
+    embed.add_field(name="Uyeler", value=_rol_listesi_kisa(rol.members, limit=10), inline=False)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="kanalbilgi", help="Kanal hakkinda detayli bilgi verir.")
+async def kanalbilgi_detayli(ctx, kanal: discord.abc.GuildChannel = None):
+    hedef = kanal or ctx.channel
+    kategori = hedef.category.name if getattr(hedef, "category", None) else "Yok"
+    embed = discord.Embed(
+        title=f"Kanal Bilgisi - {hedef.name}",
+        color=RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="ID", value=f"`{hedef.id}`", inline=True)
+    embed.add_field(name="Tur", value=type(hedef).__name__.replace("Channel", ""), inline=True)
+    embed.add_field(name="Kategori", value=kategori, inline=True)
+    embed.add_field(name="Pozisyon", value=str(getattr(hedef, "position", "-")), inline=True)
+    embed.add_field(name="NSFW", value="Evet" if getattr(hedef, "is_nsfw", lambda: False)() else "Hayir", inline=True)
+    embed.add_field(name="Olusturulma", value=_detayli_tarih(hedef.created_at), inline=True)
+    if isinstance(hedef, discord.TextChannel):
+        embed.add_field(name="Yavas Mod", value=f"{hedef.slowmode_delay} sn", inline=True)
+        embed.add_field(name="Konu", value=hedef.topic or "Yok", inline=False)
+    if isinstance(hedef, discord.VoiceChannel):
+        embed.add_field(name="Bitrate", value=str(hedef.bitrate), inline=True)
+        embed.add_field(name="Limit", value=str(hedef.user_limit or 0), inline=True)
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="kullanicibilgi", help="Kullanici hakkinda detayli bilgi verir.")
+async def kullanicibilgi_detayli(ctx, uye: discord.Member = None):
+    hedef = uye or ctx.author
+    profil = _profil_istat_al(ctx.guild.id, hedef.id)
+    embed = discord.Embed(
+        title=f"Kullanici Bilgisi - {hedef.display_name}",
+        description=f"{hedef.mention} icin detayli uye bilgisi",
+        color=hedef.color if hedef.color.value else RENKLER["bilgi"],
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="Kullanici", value=f"{hedef} \n`{hedef.id}`", inline=False)
+    embed.add_field(name="Takma Ad", value=hedef.nick or "Yok", inline=True)
+    embed.add_field(name="En Ust Rol", value=hedef.top_role.mention if hedef.top_role else "Yok", inline=True)
+    embed.add_field(name="Bot", value="Evet" if hedef.bot else "Hayir", inline=True)
+    embed.add_field(name="Hesap Acilis", value=_detayli_tarih(hedef.created_at), inline=True)
+    embed.add_field(name="Sunucu Katilim", value=_detayli_tarih(hedef.joined_at), inline=True)
+    embed.add_field(name="Roller", value=str(max(0, len(hedef.roles) - 1)), inline=True)
+    embed.add_field(name="Mesaj", value=_kisa_sayi(profil.get("message_count", 0)), inline=True)
+    embed.add_field(name="Ses", value=_sureyi_formatla(int(profil.get("voice_seconds", 0))), inline=True)
+    embed.add_field(name="Rozetler", value=_uye_rozet_metin(ctx.guild.id, hedef.id), inline=True)
+    embed.add_field(name="Rol Listesi", value=_rol_listesi_kisa(hedef.roles), inline=False)
+    if hedef.display_avatar:
+        embed.set_thumbnail(url=hedef.display_avatar.url)
+    embed.set_footer(text=f"Sunucu icin kayitli uye: {ctx.guild.member_count}")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="sesistatistik", help="En aktif ses kullanicilarini gosterir.")
+async def sesistatistik_detayli(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {}).get("profil_istat", {})
+    satirlar = []
+    for index, (uye_id, veri) in enumerate(sorted(ayarlar.items(), key=lambda x: int(x[1].get("voice_seconds", 0)), reverse=True)[:15], start=1):
+        uye = ctx.guild.get_member(int(uye_id))
+        if uye:
+            satirlar.append(f"**#{index}** {uye.mention} - **{_sureyi_formatla(int(veri.get('voice_seconds', 0)))}**")
+    embed = discord.Embed(title="Ses Istatistikleri", description="\n".join(satirlar) or "Kayit yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="mesajistatistik", help="En cok mesaj atan kullanicilari gosterir.")
+async def mesajistatistik_detayli(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {}).get("profil_istat", {})
+    satirlar = []
+    for index, (uye_id, veri) in enumerate(sorted(ayarlar.items(), key=lambda x: int(x[1].get("message_count", 0)), reverse=True)[:15], start=1):
+        uye = ctx.guild.get_member(int(uye_id))
+        if uye:
+            satirlar.append(f"**#{index}** {uye.mention} - **{_kisa_sayi(int(veri.get('message_count', 0)))} mesaj**")
+    embed = discord.Embed(title="Mesaj Istatistikleri", description="\n".join(satirlar) or "Kayit yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="leaderboard", help="Mesaj, ses ve level karmasi siralamayi gosterir.")
+async def leaderboard_detayli(ctx):
+    ayarlar = ayarlari_yukle().get(str(ctx.guild.id), {})
+    tum_xp_veri = ayarlar.get("level_xp", {})
+    profil_veri = ayarlar.get("profil_istat", {})
+    puanlar = []
+    for uye_id, xp_veri in tum_xp_veri.items():
+        uye = ctx.guild.get_member(int(uye_id))
+        if not uye:
+            continue
+        profil = _profil_istat_al(ctx.guild.id, int(uye_id))
+        toplam_xp = _toplam_xp_hesapla(int(xp_veri.get("level", 0)), int(xp_veri.get("xp", 0)))
+        puan = toplam_xp + int(profil.get("message_count", 0)) * 2 + int(profil.get("voice_seconds", 0) // 60)
+        puanlar.append((uye, puan, xp_veri, profil))
+    puanlar.sort(key=lambda item: item[1], reverse=True)
+    satirlar = []
+    for index, (uye, puan, xp_veri, profil) in enumerate(puanlar[:15], start=1):
+        satirlar.append(
+            f"**#{index}** {uye.mention}\n"
+            f"Puan: **{_kisa_sayi(puan)}** | Level: **{int(xp_veri.get('level', 0))}** | "
+            f"Mesaj: **{_kisa_sayi(profil.get('message_count', 0))}** | Ses: **{_sureyi_formatla(int(profil.get('voice_seconds', 0)))}**"
+        )
+    embed = discord.Embed(title="Genel Leaderboard", description="\n\n".join(satirlar) or "Kayit yok.", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    await ctx.send(embed=embed)
+
+
+@bot.command(name="say", help="Sunucu say bilgilerini detayli gosterir.")
+async def say_detayli(ctx):
+    g = ctx.guild
+    insanlar = len([m for m in g.members if not m.bot])
+    botlar = len([m for m in g.members if m.bot])
+    cevrimici = len([m for m in g.members if m.status != discord.Status.offline])
+    seste = len([m for m in g.members if m.voice and m.voice.channel])
+    boostlu = g.premium_subscription_count or 0
+    embed = discord.Embed(title="Sunucu Say Bilgisi", color=RENKLER["bilgi"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Toplam Uye", value=str(g.member_count), inline=True)
+    embed.add_field(name="Gercek Uye", value=str(insanlar), inline=True)
+    embed.add_field(name="Bot", value=str(botlar), inline=True)
+    embed.add_field(name="Cevrimici", value=str(cevrimici), inline=True)
+    embed.add_field(name="Seste", value=str(seste), inline=True)
+    embed.add_field(name="Boost", value=str(boostlu), inline=True)
     await ctx.send(embed=embed)
 
 
