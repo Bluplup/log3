@@ -10474,42 +10474,44 @@ async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: 
     avatar1 = await _ship_avatar_gorseli_al(uye1)
     avatar2 = await _ship_avatar_gorseli_al(uye2)
 
-    tuval = Image.new("RGBA", (960, 420), (60, 8, 18, 255))
+    tuval = Image.new("RGBA", (960, 420), (28, 7, 18, 255))
     draw = ImageDraw.Draw(tuval)
-    font_baslik = _ship_font(30, kalin=True)
-    font_isim = _ship_font(26, kalin=True)
-    font_yuzde = _ship_font(34, kalin=True)
-    font_orta = _ship_font(18, kalin=True)
-    font_kucuk = _ship_font(16, kalin=False)
+    font_isim = _ship_font(30, kalin=True)
+    font_yuzde = _ship_font(38, kalin=True)
+    font_orta = _ship_font(20, kalin=True)
+    font_kucuk = _ship_font(18, kalin=False)
 
     for i in range(420):
-        ton = int(50 + (i / 420) * 90)
-        draw.line((0, i, 960, i), fill=(110 + ton, 8, 20 + ton // 4, 255))
+        ton = int(35 + (i / 420) * 80)
+        draw.line((0, i, 960, i), fill=(70 + ton, 8, 24 + ton // 4, 255))
 
-    for x in range(40, 930, 70):
-        draw.ellipse((x, 18, x + 12, 30), fill=(255, 210, 220, 140))
-    draw.rounded_rectangle((24, 24, 936, 396), radius=32, outline=(255, 120, 140, 255), width=6, fill=(92, 6, 16, 230))
-    draw.rounded_rectangle((70, 110, 310, 350), radius=28, outline=(255, 110, 110, 255), width=5, fill=(70, 10, 20, 255))
-    draw.rounded_rectangle((650, 110, 890, 350), radius=28, outline=(255, 110, 110, 255), width=5, fill=(70, 10, 20, 255))
-    draw.rounded_rectangle((405, 105, 555, 355), radius=30, outline=(255, 130, 130, 255), width=5, fill=(120, 15, 28, 255))
-    draw.rounded_rectangle((426, 120, 534, 325), radius=18, outline=(255, 180, 190, 255), width=3, fill=(96, 10, 24, 255))
+    draw.rounded_rectangle((24, 24, 936, 396), radius=34, outline=(255, 96, 128, 255), width=4, fill=(58, 8, 24, 240))
+    draw.rounded_rectangle((52, 52, 908, 368), radius=28, outline=(255, 180, 196, 210), width=2, fill=(84, 10, 30, 110))
+    draw.rounded_rectangle((86, 116, 320, 350), radius=30, outline=(255, 126, 150, 255), width=4, fill=(45, 10, 22, 255))
+    draw.rounded_rectangle((640, 116, 874, 350), radius=30, outline=(255, 126, 150, 255), width=4, fill=(45, 10, 22, 255))
+    draw.rounded_rectangle((410, 104, 550, 356), radius=34, outline=(255, 160, 180, 255), width=4, fill=(78, 12, 28, 255))
+    draw.rounded_rectangle((452, 128, 508, 324), radius=14, outline=(255, 225, 230, 255), width=2, fill=(96, 18, 36, 255))
 
-    tuval.alpha_composite(avatar1, (80, 120))
-    tuval.alpha_composite(avatar2, (660, 120))
+    tuval.alpha_composite(avatar1, (93, 123))
+    tuval.alpha_composite(avatar2, (653, 123))
 
     isim1 = uye1.display_name[:16]
     isim2 = uye2.display_name[:16]
-    draw.text((105, 64), isim1, fill=(255, 240, 240, 255), font=font_isim)
-    draw.text((685, 64), isim2, fill=(255, 240, 240, 255), font=font_isim)
+    bbox1 = draw.textbbox((0, 0), isim1, font=font_isim)
+    bbox2 = draw.textbbox((0, 0), isim2, font=font_isim)
+    draw.text((203 - ((bbox1[2] - bbox1[0]) / 2), 68), isim1, fill=(255, 240, 240, 255), font=font_isim)
+    draw.text((757 - ((bbox2[2] - bbox2[0]) / 2), 68), isim2, fill=(255, 240, 240, 255), font=font_isim)
 
-    kalp_dolum = int((190 * max(0, min(100, yuzde))) / 100)
-    draw.rounded_rectangle((442, 320 - kalp_dolum, 518, 320), radius=14, fill=(255, 173, 181, 255))
-    draw.rounded_rectangle((442, 130, 518, 320), radius=14, outline=(255, 205, 210, 255), width=3)
-    draw.text((438, 276), f"{yuzde}%", fill=(255, 255, 255, 255), font=font_yuzde)
-    draw.text((449, 72), "LOVE", fill=(255, 225, 225, 255), font=font_orta)
+    kalp_dolum = int((196 * max(0, min(100, yuzde))) / 100)
+    draw.rounded_rectangle((452, 324 - kalp_dolum, 508, 324), radius=14, fill=(255, 178, 190, 255))
+    yuzde_metin = f"{yuzde}%"
+    yuzde_bbox = draw.textbbox((0, 0), yuzde_metin, font=font_yuzde)
+    draw.text((480 - ((yuzde_bbox[2] - yuzde_bbox[0]) / 2), 274), yuzde_metin, fill=(255, 255, 255, 255), font=font_yuzde)
+    love_bbox = draw.textbbox((0, 0), "LOVE", font=font_orta)
+    draw.text((480 - ((love_bbox[2] - love_bbox[0]) / 2), 78), "LOVE", fill=(255, 230, 235, 255), font=font_orta)
 
     for index in range(5):
-        y = 124 + index * 40
+        y = 128 + index * 38
         aktif = index < max(1, round(yuzde / 20))
         renk = (255, 90, 120, 255) if aktif else (255, 220, 220, 120)
         draw.ellipse((360, y, 376, y + 16), fill=renk)
@@ -10520,8 +10522,8 @@ async def _ship_kart_olustur(uye1: discord.Member, uye2: discord.Member, yuzde: 
         draw.polygon([(565, y + 8), (593, y + 8), (579, y + 28)], fill=renk)
 
     yorum = _ship_yorum(yuzde)
-    draw.text((40, 28), "PREMIUM SHIP", fill=(255, 235, 235, 255), font=font_baslik)
-    draw.text((40, 378), yorum[:72], fill=(255, 230, 230, 255), font=font_kucuk)
+    yorum_bbox = draw.textbbox((0, 0), yorum[:72], font=font_kucuk)
+    draw.text((480 - ((yorum_bbox[2] - yorum_bbox[0]) / 2), 378), yorum[:72], fill=(255, 230, 230, 255), font=font_kucuk)
 
     buffer = io.BytesIO()
     tuval.save(buffer, format="PNG")
