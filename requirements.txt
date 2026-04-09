@@ -1,6 +1,6 @@
 
 flask
-discord.py
+discord.py[voice]
 Pillow
 yt-dlp
 PyNaCl
