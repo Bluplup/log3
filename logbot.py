@@ -29,6 +29,7 @@ import secrets
 import socket
 import urllib.error
 import urllib.request
+import yt_dlp
 from flask import Flask
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from threading import Thread, RLock
@@ -10648,6 +10649,288 @@ async def kurucu_izin_bypass(ctx, error):
         await ctx.reinvoke()
     except Exception as e:
         print(f"[HATA] kurucu bypass basarisiz: {e}")
+
+
+for _muzik_sil in ("cal", "gec", "durdur", "devam", "kuyruk", "ayril", "karistir", "tekrar", "simdicalan"):
+    try:
+        bot.remove_command(_muzik_sil)
+    except Exception:
+        pass
+
+
+YTDL_OPTS = {
+    "format": "bestaudio/best",
+    "noplaylist": True,
+    "quiet": True,
+    "default_search": "ytsearch1",
+    "nocheckcertificate": True,
+    "ignoreerrors": False,
+    "source_address": "0.0.0.0",
+}
+FFMPEG_OPTIONS = {
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "options": "-vn",
+}
+_MUZIK_ODALARI = {}
+
+
+def _muzik_embed(baslik: str, aciklama: str, renk: int | None = None) -> discord.Embed:
+    e = discord.Embed(
+        title=baslik,
+        description=aciklama,
+        color=renk if renk is not None else RENKLER.get("bilgi", 0x7F8C8D),
+        timestamp=datetime.now(timezone.utc),
+    )
+    e.set_footer(text=zaman_damgasi())
+    return e
+
+
+def _muzik_veri_al(guild_id: int) -> dict:
+    veri = _MUZIK_ODALARI.setdefault(guild_id, {
+        "queue": [],
+        "current": None,
+        "loop": False,
+        "text_channel_id": None,
+        "volume": 0.5,
+    })
+    return veri
+
+
+async def _muzik_kaynak_coz(sorgu: str) -> dict:
+    def _cek():
+        with yt_dlp.YoutubeDL(YTDL_OPTS) as ydl:
+            bilgi = ydl.extract_info(sorgu, download=False)
+            if bilgi is None:
+                return None
+            if "entries" in bilgi:
+                entries = [x for x in (bilgi.get("entries") or []) if x]
+                if not entries:
+                    return None
+                bilgi = entries[0]
+            return {
+                "title": bilgi.get("title") or "Bilinmeyen Sarki",
+                "webpage_url": bilgi.get("webpage_url") or bilgi.get("original_url") or sorgu,
+                "stream_url": bilgi.get("url"),
+                "duration": int(bilgi.get("duration") or 0),
+                "thumbnail": bilgi.get("thumbnail"),
+                "uploader": bilgi.get("uploader") or "Bilinmiyor",
+                "requested_by": None,
+            }
+    return await asyncio.to_thread(_cek)
+
+
+def _muzik_sure_format(saniye: int) -> str:
+    saniye = int(saniye or 0)
+    saat, kalan = divmod(saniye, 3600)
+    dakika, saniye = divmod(kalan, 60)
+    if saat:
+        return f"{saat}:{dakika:02d}:{saniye:02d}"
+    return f"{dakika}:{saniye:02d}"
+
+
+async def _muzik_siradaki_cal(guild: discord.Guild):
+    veri = _muzik_veri_al(guild.id)
+    voice = guild.voice_client
+    if not voice or not voice.is_connected():
+        veri["current"] = None
+        veri["queue"] = []
+        return
+
+    if veri["loop"] and veri["current"]:
+        parca = dict(veri["current"])
+    else:
+        if not veri["queue"]:
+            veri["current"] = None
+            kanal = guild.get_channel(veri.get("text_channel_id") or 0)
+            if kanal:
+                await kanal.send(embed=_muzik_embed("Kuyruk Bitti", "Kuyruk bosaldi, muzik durdu.", RENKLER.get("hata", 0xE74C3C)))
+            return
+        parca = veri["queue"].pop(0)
+        veri["current"] = parca
+
+    try:
+        kaynak = discord.FFmpegPCMAudio(parca["stream_url"], **FFMPEG_OPTIONS)
+    except Exception as e:
+        kanal = guild.get_channel(veri.get("text_channel_id") or 0)
+        if kanal:
+            await kanal.send(embed=hata_embedi("FFmpeg Hatasi", f"Sarki baslatilamadi: `{e}`"))
+        veri["current"] = None
+        return
+
+    def _bitince(hata):
+        if hata:
+            print(f"[HATA] muzik bitis: {hata}")
+        fut = asyncio.run_coroutine_threadsafe(_muzik_siradaki_cal(guild), bot.loop)
+        try:
+            fut.result()
+        except Exception as exc:
+            print(f"[HATA] sonraki sarki: {exc}")
+
+    voice.play(kaynak, after=_bitince)
+    kanal = guild.get_channel(veri.get("text_channel_id") or 0)
+    if kanal:
+        e = _muzik_embed(
+            "Simdi Caliyor",
+            f"**{parca['title']}**\nSuresi: `{_muzik_sure_format(parca.get('duration', 0))}`\nEkleyen: {parca.get('requested_by', 'Bilinmiyor')}\n[Video linki]({parca.get('webpage_url')})",
+            RENKLER.get("basari", 0x2ECC71),
+        )
+        if parca.get("thumbnail"):
+            try:
+                e.set_thumbnail(url=parca["thumbnail"])
+            except Exception:
+                pass
+        await kanal.send(embed=e)
+
+
+async def _muzik_sese_baglan(ctx) -> discord.VoiceClient | None:
+    if not ctx.author.voice or not ctx.author.voice.channel:
+        await ctx.send(embed=hata_embedi("Ses Kanali Gerekli", "Bu komutu kullanmak icin once bir ses kanalina girmelisin."))
+        return None
+    hedef_kanal = ctx.author.voice.channel
+    if ctx.voice_client and ctx.voice_client.is_connected():
+        if ctx.voice_client.channel != hedef_kanal:
+            await ctx.voice_client.move_to(hedef_kanal)
+        return ctx.voice_client
+    try:
+        return await hedef_kanal.connect()
+    except Exception as e:
+        await ctx.send(embed=hata_embedi("Baglanti Hatasi", f"Ses kanalina baglanilamadi: `{e}`"))
+        return None
+
+
+@bot.command(name="cal", help="YouTube linki veya yazi ile sarki acar.")
+async def cal(ctx, *, sorgu: str = None):
+    if not sorgu:
+        await ctx.send(embed=kullanim_embedi(".cal Ayten Alpman tek basina"))
+        return
+    voice = await _muzik_sese_baglan(ctx)
+    if not voice:
+        return
+    veri = _muzik_veri_al(ctx.guild.id)
+    veri["text_channel_id"] = ctx.channel.id
+    async with ctx.typing():
+        try:
+            parca = await _muzik_kaynak_coz(sorgu)
+        except Exception as e:
+            await ctx.send(embed=hata_embedi("Sarki Bulunamadi", f"Arama sirasinda hata oldu: `{e}`"))
+            return
+    if not parca or not parca.get("stream_url"):
+        await ctx.send(embed=hata_embedi("Sarki Bulunamadi", "Verdigin link ya da baslik icin uygun sonuc bulunamadi."))
+        return
+    parca["requested_by"] = ctx.author.mention
+    veri["queue"].append(parca)
+
+    if voice.is_playing() or voice.is_paused() or veri.get("current"):
+        e = _muzik_embed(
+            "Kuyruga Eklendi",
+            f"**{parca['title']}** kuyruga eklendi.\nSira: `{len(veri['queue'])}`\nSuresi: `{_muzik_sure_format(parca.get('duration', 0))}`\n[Video linki]({parca.get('webpage_url')})",
+            RENKLER.get("bilgi", 0x7F8C8D),
+        )
+        if parca.get("thumbnail"):
+            try:
+                e.set_thumbnail(url=parca["thumbnail"])
+            except Exception:
+                pass
+        await ctx.send(embed=e)
+        return
+
+    await _muzik_siradaki_cal(ctx.guild)
+
+
+@bot.command(name="gec", help="Siradaki sarkiya gecer.")
+async def gec(ctx):
+    if not ctx.voice_client or not ctx.voice_client.is_connected():
+        await ctx.send(embed=hata_embedi("Muzik Yok", "Su an calan bir muzik yok."))
+        return
+    if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
+        ctx.voice_client.stop()
+        await ctx.send(embed=_muzik_embed("Gecildi", "Sarki gecildi.", RENKLER.get("mute", 0xE67E22)))
+    else:
+        await ctx.send(embed=hata_embedi("Muzik Yok", "Su an gecilecek bir sarki yok."))
+
+
+@bot.command(name="durdur", help="Muzigi duraklatir.")
+async def durdur(ctx):
+    if ctx.voice_client and ctx.voice_client.is_playing():
+        ctx.voice_client.pause()
+        await ctx.send(embed=_muzik_embed("Duraklatildi", "Muzik duraklatildi.", RENKLER.get("mute", 0xE67E22)))
+    else:
+        await ctx.send(embed=hata_embedi("Muzik Yok", "Duraklatilacak bir muzik yok."))
+
+
+@bot.command(name="devam", help="Duraklatilan muzigi devam ettirir.")
+async def devam(ctx):
+    if ctx.voice_client and ctx.voice_client.is_paused():
+        ctx.voice_client.resume()
+        await ctx.send(embed=_muzik_embed("Devam Ediyor", "Muzik tekrar devam ediyor.", RENKLER.get("basari", 0x2ECC71)))
+    else:
+        await ctx.send(embed=hata_embedi("Muzik Yok", "Devam ettirilecek duraklatilmis muzik yok."))
+
+
+@bot.command(name="kuyruk", help="Mevcut muzik kuyrugunu gosterir.")
+async def kuyruk(ctx):
+    veri = _muzik_veri_al(ctx.guild.id)
+    satirlar = []
+    if veri.get("current"):
+        satirlar.append(f"**Simdi:** {veri['current']['title']} - `{_muzik_sure_format(veri['current'].get('duration', 0))}`")
+    for index, parca in enumerate(veri.get("queue", [])[:10], start=1):
+        satirlar.append(f"**{index}.** {parca['title']} - `{_muzik_sure_format(parca.get('duration', 0))}`")
+    await ctx.send(embed=_muzik_embed("Muzik Kuyrugu", "\n".join(satirlar) or "Kuyruk bos.", RENKLER.get("bilgi", 0x7F8C8D)))
+
+
+@bot.command(name="karistir", help="Kuyrugu karistirir.")
+async def karistir(ctx):
+    veri = _muzik_veri_al(ctx.guild.id)
+    if len(veri.get("queue", [])) < 2:
+        await ctx.send(embed=hata_embedi("Kuyruk Yetersiz", "Karistirmak icin kuyrukta en az 2 sarki olmali."))
+        return
+    _random.shuffle(veri["queue"])
+    await ctx.send(embed=_muzik_embed("Kuyruk Karistirildi", "Siradaki sarkilar rastgele karistirildi.", RENKLER.get("basari", 0x2ECC71)))
+
+
+@bot.command(name="tekrar", help="Siradaki sarkiyi tekrar moduna alir.")
+async def tekrar(ctx):
+    veri = _muzik_veri_al(ctx.guild.id)
+    veri["loop"] = not veri.get("loop", False)
+    durum = "acik" if veri["loop"] else "kapali"
+    await ctx.send(embed=_muzik_embed("Tekrar Modu", f"Tekrar modu **{durum}**.", RENKLER.get("bilgi", 0x7F8C8D)))
+
+
+@bot.command(name="simdicalan", help="Su an calan sarkiyi gosterir.")
+async def simdicalan(ctx):
+    veri = _muzik_veri_al(ctx.guild.id)
+    parca = veri.get("current")
+    if not parca:
+        await ctx.send(embed=hata_embedi("Muzik Yok", "Su an calan bir sarki yok."))
+        return
+    e = _muzik_embed(
+        "Simdi Calan",
+        f"**{parca['title']}**\nSuresi: `{_muzik_sure_format(parca.get('duration', 0))}`\nEkleyen: {parca.get('requested_by', 'Bilinmiyor')}\n[Video linki]({parca.get('webpage_url')})",
+        RENKLER.get("basari", 0x2ECC71),
+    )
+    if parca.get("thumbnail"):
+        try:
+            e.set_thumbnail(url=parca["thumbnail"])
+        except Exception:
+            pass
+    await ctx.send(embed=e)
+
+
+@bot.command(name="ayril", help="Botu ses kanalindan ayirir ve kuyrugu temizler.")
+async def ayril(ctx):
+    if not ctx.voice_client or not ctx.voice_client.is_connected():
+        await ctx.send(embed=hata_embedi("Bagli Degil", "Bot su an bir ses kanalinda degil."))
+        return
+    veri = _muzik_veri_al(ctx.guild.id)
+    veri["queue"] = []
+    veri["current"] = None
+    veri["loop"] = False
+    try:
+        await ctx.voice_client.disconnect(force=True)
+    except Exception as e:
+        await ctx.send(embed=hata_embedi("Ayrilma Hatasi", f"Ses kanalindan ayrilinamadi: `{e}`"))
+        return
+    await ctx.send(embed=_muzik_embed("Ayrildi", "Kuyruk temizlendi ve ses kanalindan ayrildim.", RENKLER.get("hata", 0xE74C3C)))
 
 
 if __name__ == "__main__":
