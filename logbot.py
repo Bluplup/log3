@@ -17,6 +17,8 @@ Komutlar (Slash komutlar):
 
 import discord
 import nacl
+import nacl.secret
+import nacl.utils
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone, timedelta
@@ -35,6 +37,9 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from threading import Thread, RLock
 import time
+import discord.voice_client as discord_voice_client
+
+discord_voice_client.has_nacl = True
 
 # 
 #  AYARLAR
