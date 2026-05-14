@@ -9573,14 +9573,22 @@ if __name__ == "__main__":
 
 def _help_kategori_komutlari():
     tum = {c.name: c for c in bot.commands if not c.hidden}
-    return {
-        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "sayac-kapat", "yasakli-komut", "rollog", "destekistek-log"],
-        "Moderasyon": ["ban", "blupbum", "kick", "mute", "unmute", "jail", "unjail", "cezagecmisi", "cezasil", "cezapanel", "yetkiceza", "kanalkilit", "kanalac"],
-        "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "yetkiver", "yetkial", "temprol", "roldagit", "roltemizle", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler", "rozetver", "rozetal", "profil-arka-plan"],
-        "Sistemler": ["ticketpanel", "ticketkur", "partner-kur", "partner-kapat", "partnerpuan", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "otocevap-kapat", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "spam-koruma-durum", "hosgeldinkur", "hosgeldinkapat", "karsilamakur", "karsilamakapat", "levelkur", "levelkapat", "basvuru-panel", "itiraz-panel", "afis", "ses-kanal-ac", "ozeloda"],
+    kategoriler = {
+        "Ayarlar": ["kurulumdurum", "butunsistemlerikaldir", "uygulamakomutkapat", "otorol", "sunucukural", "duyurupanel", "sayac", "sayac-kapat", "yasakli-komut", "rollog", "destekistek-log", "leveldurum", "hosgeldindurum", "karsilamadurum", "spam-koruma-durum"],
+        "Moderasyon": ["ban", "blupbum", "unban", "kick", "mute", "unmute", "jail", "unjail", "sil", "cezagecmisi", "cezasil", "cezapanel", "yetkiceza", "kanalkilit", "kanalac"],
+        "Roller": ["renkpanel", "animerolpanel", "animerollerikur", "animerollerikaldir", "rolmenu", "levelrol", "levelrolsil", "levelrolleri", "yetkiver", "yetkial", "temprol", "roldagit", "roltemizle", "herkese-rol", "herkesten-rol", "rolbilgi", "asagitasi", "rolidler", "rozetver", "rozetal", "profil-arka-plan"],
+        "Sistemler": ["ticketpanel", "ticketkur", "ticket-oncelik", "partner-kur", "partner-kapat", "partnerpuan", "partner-top", "partner-istatistik", "partner-liste", "partner-sifirla", "gifcevap", "gifcevapkapat", "gifcevapdurum", "otocevap", "otocevap-kapat", "jailkur", "jailkapat", "guvenlikkur", "guvenlikkapat", "guvenlikdurum", "kufur-kur", "kufur-kapat", "kufur-listele", "yetkilikufurkur", "yetkilikufurkapat", "yetkilikufurdurum", "hosgeldinkur", "hosgeldinkapat", "hosgeldinmesajtest", "karsilamakur", "karsilamakapat", "karsilamatest", "levelkur", "levelkapat", "levelmesajtest", "basvuru-panel", "itiraz-panel", "afis", "ses-kanal-ac", "ozeloda"],
         "Kullanici": ["profil", "seviye", "ship", "avatar", "banner", "kullanicibilgi", "isimgecmisi", "notekle", "notlar", "notsil", "not-temizle", "destekistek", "welcome-say", "kimnezaman"],
         "Bilgi": ["sunucupanel", "yetkilipanel", "seviyetop", "sesistatistik", "mesajistatistik", "leaderboard", "say", "kanalbilgi", "komutbilgi", "ping"],
-    }, tum
+        "Diger": [],
+    }
+    kullanilanlar = set()
+    for komutlar in kategoriler.values():
+        for ad in komutlar:
+            if ad in tum:
+                kullanilanlar.add(ad)
+    kategoriler["Diger"] = sorted([ad for ad in tum if ad not in kullanilanlar])
+    return kategoriler, tum
 
 
 def _help_kategori_emoji(kategori: str) -> str:
@@ -9598,13 +9606,13 @@ def _help_ana_embed(ctx):
     kategoriler, tum = _help_kategori_komutlari()
     embed = discord.Embed(
         title="Komut Menusu",
-        description="Asagidaki acilir menuden bir kategori sec.",
+        description="Asagidaki acilir menuden bir kategori sec. Koddaki tum aktif prefix komutlar burada listelenir.",
         color=0xF7C948,
         timestamp=datetime.now(timezone.utc),
     )
     embed.add_field(
         name="Kategoriler",
-        value="\n".join(f"{_help_kategori_emoji(ad)} **{ad}**: {sum(1 for k in komutlar if k in tum)}" for ad, komutlar in kategoriler.items()),
+        value="\n".join(f"{_help_kategori_emoji(ad)} **{ad}**: {sum(1 for k in komutlar if k in tum)}" for ad, komutlar in kategoriler.items() if sum(1 for k in komutlar if k in tum) > 0),
         inline=True,
     )
     embed.add_field(
@@ -9612,6 +9620,7 @@ def _help_ana_embed(ctx):
         value="`.renkpanel`\n`.ticketpanel`\n`.levelkur`\n`.gifcevap`\n`.jailkur`\n`.komutbilgi mute`",
         inline=True,
     )
+    embed.add_field(name="Toplam Komut", value=str(len(tum)), inline=False)
     embed.set_footer(text=f"{ctx.author} tarafindan acildi")
     return embed
 
@@ -9622,15 +9631,26 @@ def _help_kategori_embed(kategori):
     for ad in kategoriler.get(kategori, []):
         komut = tum.get(ad)
         if komut:
-            aciklama = (komut.help or "Bu komut hazir.").strip()
-            satirlar.append(f"• **.{komut.name}** - {aciklama}")
+            aciklama = _help_aciklama_temizle(komut)
+            satirlar.append(f"- **.{komut.name}** - {aciklama}")
     embed = discord.Embed(
         title=f"{_help_kategori_emoji(kategori)} {kategori} Komutlari",
-        description="\n".join(satirlar[:20]) or "Bu kategoride komut yok.",
+        description="\n".join(satirlar) or "Bu kategoride komut yok.",
         color=0x4D96FF,
         timestamp=datetime.now(timezone.utc),
     )
+    embed.set_footer(text=f"{len(satirlar)} komut listelendi")
     return embed
+
+
+def _help_aciklama_temizle(komut):
+    aciklama = (komut.help or "").strip()
+    if not aciklama:
+        return f".{komut.name} komutunu kullanarak ilgili islemi yaparsin."
+    if "Bu komut hazir" in aciklama or "hazir" == aciklama.lower():
+        return f".{komut.name} komutu ilgili sistemi kullanman icin vardir."
+    aciklama = aciklama.replace("Bu komut hazir.", "").replace("Bu komut hazir", "").strip(" -.")
+    return aciklama or f".{komut.name} komutunu kullanarak ilgili islemi yaparsin."
 
 
 class BasitHelpSelect(discord.ui.Select):
@@ -9640,6 +9660,7 @@ class BasitHelpSelect(discord.ui.Select):
         options = [
             discord.SelectOption(label=ad, description=f"{sum(1 for k in komutlar if k in tum)} komut", value=ad, emoji=_help_kategori_emoji(ad))
             for ad, komutlar in kategoriler.items()
+            if sum(1 for k in komutlar if k in tum) > 0
         ]
         super().__init__(placeholder="Kategori sec", min_values=1, max_values=1, options=options)
 
