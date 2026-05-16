@@ -647,22 +647,22 @@ class TicketControlView(discord.ui.View):
             log_kanali = interaction.guild.get_channel(log_id)
             if log_kanali:
                 await log_kanali.send(embed=discord.Embed(
-                    title=" Ticket Kapatld",
+                    title="Ticket Kapatıldı",
                     description=f"**Ticket:** `{channel.name}`\n**Kapatan:** {interaction.user.mention}",
                     color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)
                 ))
 
-        await interaction.response.send_message("Ticket kapatlyor...", ephemeral=True)
-        await channel.delete(reason=f"{interaction.user} tarafndan kapatld")
+        await interaction.response.send_message("Ticket kapatılıyor...", ephemeral=True)
+        await channel.delete(reason=f"{interaction.user} tarafından kapatıldı")
 
-    @discord.ui.button(label=" ye Ekle", style=discord.ButtonStyle.secondary, custom_id="ticket_uyeekle")
+    @discord.ui.button(label="Üye Ekle", style=discord.ButtonStyle.secondary, custom_id="ticket_uyeekle")
     async def uye_ekle(self, interaction: discord.Interaction, button: discord.ui.Button):
         channel = interaction.channel
         if not isinstance(channel, discord.TextChannel) or not channel.name.startswith("ticket-"):
-            await interaction.response.send_message(" Bu buton sadece ticket kanalnda kullanlabilir.", ephemeral=True)
+            await interaction.response.send_message("Bu buton sadece ticket kanalında kullanılabilir.", ephemeral=True)
             return
 
-        await interaction.response.send_message("Eklemek istediin kullancy bu kanalda etiketle: @kullanc", ephemeral=True)
+        await interaction.response.send_message("Eklemek istediğin kullanıcıyı bu kanalda etiketle: @kullanici", ephemeral=True)
 
         def check(message: discord.Message):
             return message.author == interaction.user and message.channel == channel and message.mentions
@@ -671,36 +671,36 @@ class TicketControlView(discord.ui.View):
             yanit = await bot.wait_for("message", check=check, timeout=30)
             for uye in yanit.mentions:
                 await channel.set_permissions(uye, read_messages=True, send_messages=True)
-            await channel.send(f" {' '.join(u.mention for u in yanit.mentions)} ticketa eklendi.")
+            await channel.send(f"{' '.join(u.mention for u in yanit.mentions)} tickete eklendi.")
             await yanit.delete()
         except asyncio.TimeoutError:
-            await channel.send(" Kullanc ekleme isteinin sresi doldu.", delete_after=5)
+            await channel.send("Kullanıcı ekleme isteğinin süresi doldu.", delete_after=5)
 
     @discord.ui.button(label=" Talep Al", style=discord.ButtonStyle.success, custom_id="ticket_talep")
     async def talep_al(self, interaction: discord.Interaction, button: discord.ui.Button):
         channel = interaction.channel
         if not isinstance(channel, discord.TextChannel) or not channel.name.startswith("ticket-"):
-            await interaction.response.send_message(" Bu buton sadece ticket kanalnda kullanlabilir.", ephemeral=True)
+            await interaction.response.send_message("Bu buton sadece ticket kanalında kullanılabilir.", ephemeral=True)
             return
 
         ayar = ticket_ayar_al(interaction.guild_id)
         destek_rolu = interaction.guild.get_role(ayar.get("rol"))
         if destek_rolu and destek_rolu not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(" Bu ilem iin destek rol gerekli.", ephemeral=True)
+            await interaction.response.send_message("Bu işlem için destek rolü gerekli.", ephemeral=True)
             return
 
         yeni_topic = channel.topic or ""
         if " | Talep:" in yeni_topic:
             yeni_topic = yeni_topic.split(" | Talep:")[0]
         await channel.edit(topic=f"{yeni_topic} | Talep: {interaction.user}")
-        await interaction.response.send_message(f" Ticket {interaction.user.mention} tarafndan talep alnd.")
+        await interaction.response.send_message(f"Ticket {interaction.user.mention} tarafından talep alındı.")
 
 
 class TicketOpenView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label=" Ticket A", style=discord.ButtonStyle.primary, custom_id="global_ticket_ac")
+    @discord.ui.button(label="Ticket Aç", style=discord.ButtonStyle.primary, custom_id="global_ticket_ac")
     async def ticket_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
         ayar = ticket_ayar_al(interaction.guild_id)
         kategori = interaction.guild.get_channel(ayar.get("kategori"))
@@ -708,7 +708,7 @@ class TicketOpenView(discord.ui.View):
         log_id = ayar.get("log")
 
         if not kategori:
-            await interaction.response.send_message(" Kategori bulunamad. `.ticketkur` ile yeniden kur.", ephemeral=True)
+            await interaction.response.send_message("Kategori bulunamadı. `.ticketkur` ile yeniden kur.", ephemeral=True)
             return
 
         for kanal in kategori.text_channels:
@@ -761,7 +761,7 @@ class TicketOpenView(discord.ui.View):
 
 
 async def audit_log_bul(guild: discord.Guild, eylem: discord.AuditLogAction, hedef=None):
-    """Audit log zerinden en son ilemi yapan kiiyi bulur."""
+    """Audit log üzerinden en son işlemi yapan kişiyi bulur."""
     try:
         async for log in guild.audit_logs(limit=5, action=eylem):
             if hedef is None:
@@ -776,50 +776,50 @@ async def audit_log_bul(guild: discord.Guild, eylem: discord.AuditLogAction, hed
 
 
 def izin_adi_getir(perm_adi: str) -> str:
-    """ngilizce izin adn Trkeye evirir. Bilinmeyenler aynen dndrlr."""
+    """İngilizce izin adını Türkçeye çevirir. Bilinmeyenler aynen döndürülür."""
     ceviriler = {
-        "administrator":            " Ynetici",
-        "manage_guild":             " Sunucuyu Ynet",
-        "manage_roles":             " Rolleri Ynet",
-        "manage_channels":          " Kanallar Ynet",
-        "manage_messages":          " Mesajlar Ynet",
-        "manage_nicknames":         " Takma Adlar Ynet",
-        "manage_webhooks":          " Webhook'lar Ynet",
-        "manage_expressions":       " fadeleri Ynet",
-        "manage_threads":           " Konular Ynet",
-        "kick_members":             " ye At",
-        "ban_members":              " ye Banla",
-        "moderate_members":         " yeleri Sustur",
-        "view_audit_log":           " Denetim Gnln Gr",
-        "view_guild_insights":      " Sunucu grlerini Gr",
-        "send_messages":            " Mesaj Gnder",
+        "administrator":            "Yönetici",
+        "manage_guild":             "Sunucuyu Yönet",
+        "manage_roles":             "Rolleri Yönet",
+        "manage_channels":          "Kanalları Yönet",
+        "manage_messages":          "Mesajları Yönet",
+        "manage_nicknames":         "Takma Adları Yönet",
+        "manage_webhooks":          "Webhook'ları Yönet",
+        "manage_expressions":       "İfadeleri Yönet",
+        "manage_threads":           "Konuları Yönet",
+        "kick_members":             "Üye At",
+        "ban_members":              "Üye Banla",
+        "moderate_members":         "Üyeleri Sustur",
+        "view_audit_log":           "Denetim Günlüğünü Gör",
+        "view_guild_insights":      "Sunucu Görüşlerini Gör",
+        "send_messages":            "Mesaj Gönder",
         "send_tts_messages":        " TTS Mesaj Gnder",
-        "embed_links":              " Link nizlemesi",
-        "attach_files":             " Dosya Ekle",
-        "read_message_history":     " Mesaj Gemiini Oku",
+        "embed_links":              "Link Önizlemesi",
+        "attach_files":             "Dosya Ekle",
+        "read_message_history":     "Mesaj Geçmişini Oku",
         "mention_everyone":         " @everyone Etiketle",
-        "use_external_emojis":      " Harici Emoji Kullan",
-        "use_external_stickers":    " Harici kartma Kullan",
-        "add_reactions":            " Tepki Ekle",
-        "use_slash_commands":       " Slash Komutlarn Kullan",
-        "connect":                  " Ses Kanalna Balan",
-        "speak":                    " Konu",
-        "stream":                   " Yayn Yap",
-        "use_voice_activation":     " Sesle Etkinletir",
-        "mute_members":             " yeleri Sustur (Ses)",
-        "deafen_members":           " yeleri Sarlatr",
-        "move_members":             " yeleri Ta",
-        "priority_speaker":         " ncelikli Konumac",
-        "create_instant_invite":    " Annda Davet Olutur",
-        "change_nickname":          " Takma Ad Deitir",
-        "view_channel":             " Kanal Gr",
-        "request_to_speak":         " Konuma stei",
-        "use_embedded_activities":  " Aktiviteleri Kullan",
-        "send_messages_in_threads": " Konularda Mesaj Gnder",
-        "create_public_threads":    " Herkese Ak Konu Olutur",
-        "create_private_threads":   " zel Konu Olutur",
+        "use_external_emojis":      "Harici Emoji Kullan",
+        "use_external_stickers":    "Harici Çıkartma Kullan",
+        "add_reactions":            "Tepki Ekle",
+        "use_slash_commands":       "Slash Komutlarını Kullan",
+        "connect":                  "Ses Kanalına Bağlan",
+        "speak":                    "Konuş",
+        "stream":                   "Yayın Yap",
+        "use_voice_activation":     "Sesle Etkinleştir",
+        "mute_members":             "Üyeleri Sustur (Ses)",
+        "deafen_members":           "Üyeleri Sağırlaştır",
+        "move_members":             "Üyeleri Taşı",
+        "priority_speaker":         "Öncelikli Konuşmacı",
+        "create_instant_invite":    "Anında Davet Oluştur",
+        "change_nickname":          "Takma Ad Değiştir",
+        "view_channel":             "Kanalı Gör",
+        "request_to_speak":         "Konuşma İsteği",
+        "use_embedded_activities":  "Aktiviteleri Kullan",
+        "send_messages_in_threads": "Konularda Mesaj Gönder",
+        "create_public_threads":    "Herkese Açık Konu Oluştur",
+        "create_private_threads":   "Özel Konu Oluştur",
     }
-    return ceviriler.get(perm_adi, f" {perm_adi.replace('_', ' ').title()}")
+    return ceviriler.get(perm_adi, perm_adi.replace('_', ' ').title())
 
 
 def izin_farklarini_bul(eski: discord.Permissions, yeni: discord.Permissions):
@@ -833,9 +833,9 @@ def izin_farklarini_bul(eski: discord.Permissions, yeni: discord.Permissions):
             * True   False : izin KALDIRILDI
         - Deimeyenler atlanr.
 
-    Dndrr:
-        eklenenler   : list[str]  eklenen izinlerin Trke isimleri
-        kaldirlanlar : list[str]  kaldrlan izinlerin Trke isimleri
+    Döndürür:
+        eklenenler   : list[str]  eklenen izinlerin Türkçe isimleri
+        kaldirlanlar : list[str]  kaldırılan izinlerin Türkçe isimleri
     """
     eklenenler   = []
     kaldirlanlar = []
@@ -1371,14 +1371,14 @@ async def komut_hata(ctx, error):
 async def on_member_ban(guild: discord.Guild, user: discord.User):
     sorumlu = await audit_log_bul(guild, discord.AuditLogAction.ban, hedef=user)
     embed = discord.Embed(
-        title="ye Banland",
-        description=f"{user.mention} sunucudan yasakland.",
+        title="Üye Banlandı",
+        description=f"{user.mention} sunucudan yasaklandı.",
         color=RENKLER["ban"],
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="Kullanc", value=f"`{user}`", inline=True)
-    embed.add_field(name="Kullanc ID", value=f"`{user.id}`", inline=True)
-    embed.add_field(name="lemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Kullanıcı", value=f"`{user}`", inline=True)
+    embed.add_field(name="Kullanıcı ID", value=f"`{user.id}`", inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
     embed.set_thumbnail(url=user.display_avatar.url)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(guild, "ban_log", embed)
@@ -1389,23 +1389,23 @@ async def on_member_ban(guild: discord.Guild, user: discord.User):
 async def on_member_unban(guild: discord.Guild, user: discord.User):
     sorumlu = await audit_log_bul(guild, discord.AuditLogAction.unban, hedef=user)
     embed = discord.Embed(
-        title="Ban Kaldrld",
-        description=f"{user.mention} yeniden sunucuya katlabilir.",
+        title="Ban Kaldırıldı",
+        description=f"{user.mention} yeniden sunucuya katılabilir.",
         color=RENKLER["unban"],
         timestamp=datetime.now(timezone.utc)
     )
-    embed.add_field(name="Kullanc", value=f"`{user}`", inline=True)
-    embed.add_field(name="Kullanc ID", value=f"`{user.id}`", inline=True)
-    embed.add_field(name="lemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Kullanıcı", value=f"`{user}`", inline=True)
+    embed.add_field(name="Kullanıcı ID", value=f"`{user.id}`", inline=True)
+    embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(guild, "ban_log", embed)
 
 
 @bot.event
 async def on_member_join(member: discord.Member):
-    embed = discord.Embed(title=" Yeni ye Katld", color=RENKLER["giris"], timestamp=datetime.now(timezone.utc))
-    embed.add_field(name=" Kullanc",       value=f"{member.mention} `{member}`",         inline=True)
-    embed.add_field(name=" Hesap Oluturma", value=member.created_at.strftime("%d.%m.%Y"), inline=True)
+    embed = discord.Embed(title="Yeni Üye Katıldı", color=RENKLER["giris"], timestamp=datetime.now(timezone.utc))
+    embed.add_field(name="Kullanıcı", value=f"{member.mention} `{member}`", inline=True)
+    embed.add_field(name="Hesap Oluşturma", value=member.created_at.strftime("%d.%m.%Y"), inline=True)
     embed.set_thumbnail(url=member.display_avatar.url)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(member.guild, "giris_cikis", embed)
@@ -1418,26 +1418,26 @@ async def on_member_remove(member: discord.Member):
 
     if sorumlu:
         embed = discord.Embed(
-            title="ye Atld",
-            description=f"{member.mention} sunucudan atld.",
+            title="Üye Atıldı",
+            description=f"{member.mention} sunucudan atıldı.",
             color=RENKLER["mute"],
             timestamp=datetime.now(timezone.utc)
         )
-        embed.add_field(name="Kullanc", value=f"`{member}`", inline=True)
-        embed.add_field(name="Kullanc ID", value=f"`{member.id}`", inline=True)
-        embed.add_field(name="lemi Yapan", value=sorumlu.mention, inline=True)
+        embed.add_field(name="Kullanıcı", value=f"`{member}`", inline=True)
+        embed.add_field(name="Kullanıcı ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(name="İşlemi Yapan", value=sorumlu.mention, inline=True)
         embed.set_footer(text=zaman_damgasi())
         await log_gonder(member.guild, "mod_log", embed)
         await _guvenlik_eylem_isle(member.guild, sorumlu, "kick", f"{member} ({member.id})", _guvenlik_ayar_al(member.guild.id).get("kick_limit", 3))
     else:
         embed = discord.Embed(
-            title="ye Ayrld",
-            description=f"{member.mention} sunucudan ayrld.",
+            title="Üye Ayrıldı",
+            description=f"{member.mention} sunucudan ayrıldı.",
             color=RENKLER["cikis"],
             timestamp=datetime.now(timezone.utc)
         )
-        embed.add_field(name="Kullanc", value=f"`{member}`", inline=True)
-        embed.add_field(name="Kullanc ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(name="Kullanıcı", value=f"`{member}`", inline=True)
+        embed.add_field(name="Kullanıcı ID", value=f"`{member.id}`", inline=True)
         embed.set_footer(text=zaman_damgasi())
         await log_gonder(member.guild, "giris_cikis", embed)
 
@@ -1449,90 +1449,90 @@ async def on_member_remove(member: discord.Member):
 @bot.event
 async def on_guild_role_update(onceki: discord.Role, sonraki: discord.Role):
     """
-    Bir rol gncellendiinde tetiklenir.
+    Bir rol güncellendiğinde tetiklenir.
 
-    zin deiikliklerini tespit eder:
+    İzin değişikliklerini tespit eder:
         1. izin_farklarini_bul() ile eklenen/kaldrlan izinleri hesaplar.
-        2. Audit log'dan deiiklii yapan kiiyi bulur.
-        3. Estetik bir embed oluturup rol_log kanalna gnderir.
+        2. Audit log'dan değişikliği yapan kişiyi bulur.
+        3. Estetik bir embed oluşturup rol_log kanalına gönderir.
     """
 
-    #  1. zin farklarn hesapla 
+    # 1. İzin farklarını hesapla
     eklenenler, kaldirlanlar = izin_farklarini_bul(onceki.permissions, sonraki.permissions)
 
-    # zin deiiklii yoksa dier deiiklikleri kontrol et (isim, renk vb.)
+    # İzin değişikliği yoksa diğer değişiklikleri kontrol et (isim, renk vb.)
     if not eklenenler and not kaldirlanlar:
         degisiklikler = []
-        if onceki.name  != sonraki.name:  degisiklikler.append(f" sim: `{onceki.name}`  `{sonraki.name}`")
-        if onceki.color != sonraki.color: degisiklikler.append(f" Renk: `{onceki.color}`  `{sonraki.color}`")
-        if onceki.hoist != sonraki.hoist: degisiklikler.append(f" Ayr Gster: `{onceki.hoist}`  `{sonraki.hoist}`")
+        if onceki.name  != sonraki.name:  degisiklikler.append(f"İsim: `{onceki.name}` -> `{sonraki.name}`")
+        if onceki.color != sonraki.color: degisiklikler.append(f"Renk: `{onceki.color}` -> `{sonraki.color}`")
+        if onceki.hoist != sonraki.hoist: degisiklikler.append(f"Ayrı Göster: `{onceki.hoist}` -> `{sonraki.hoist}`")
 
         if not degisiklikler:
-            return  # Hibir deiiklik yok
+            return
 
         sorumlu = await audit_log_bul(sonraki.guild, discord.AuditLogAction.role_update, hedef=sonraki)
         embed = discord.Embed(
-            title=f" Rol Gncellendi  {sonraki.name}",
+            title=f"Rol Güncellendi - {sonraki.name}",
             color=sonraki.color.value or RENKLER["rol"],
             timestamp=datetime.now(timezone.utc)
         )
-        embed.add_field(name=" Deiiklikler",  value="\n".join(degisiklikler),                     inline=False)
-        embed.add_field(name=" lemi Yapan",   value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+        embed.add_field(name="Değişiklikler", value="\n".join(degisiklikler), inline=False)
+        embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
         embed.set_footer(text=zaman_damgasi())
         await log_gonder(sonraki.guild, "rol_log", embed)
         return
 
-    #  2. Audit log'dan sorumluyu bul 
-    await asyncio.sleep(0.5)  # Audit log'un gncellenmesi iin ksa bekleme
+    # 2. Audit log'dan sorumluyu bul
+    await asyncio.sleep(0.5)
     sorumlu = await audit_log_bul(sonraki.guild, discord.AuditLogAction.role_update, hedef=sonraki)
 
-    #  3. zin deiiklii embedini olutur 
+    # 3. İzin değişikliği embedini oluştur
     embed = discord.Embed(
-        title=f" Rol zinleri Deiti  {sonraki.name}",
+        title=f"Rol İzinleri Değişti - {sonraki.name}",
         description=(
-            f"**{sonraki.mention}** rolnn izinleri gncellendi.\n"
-            f"**{len(eklenenler)}** izin eklendi  **{len(kaldirlanlar)}** izin kaldrld."
+            f"**{sonraki.mention}** rolünün izinleri güncellendi.\n"
+            f"**{len(eklenenler)}** izin eklendi, **{len(kaldirlanlar)}** izin kaldırıldı."
         ),
         color=RENKLER["izin"],
         timestamp=datetime.now(timezone.utc)
     )
 
-    # Eklenen izinler (yeil )
+    # Eklenen izinler
     if eklenenler:
         embed.add_field(
-            name=" Eklenen zinler",
+            name="Eklenen İzinler",
             value="\n".join(f"`+` {izin}" for izin in eklenenler),
             inline=True
         )
 
-    # Kaldrlan izinler (krmz )
+    # Kaldırılan izinler
     if kaldirlanlar:
         embed.add_field(
-            name=" Kaldrlan zinler",
+            name="Kaldırılan İzinler",
             value="\n".join(f"`-` {izin}" for izin in kaldirlanlar),
             inline=True
         )
 
-    # ki stun varsa hizalama iin bo alan
+    # İki sütun varsa hizalama için boş alan
     if eklenenler and kaldirlanlar:
         embed.add_field(name="\u200b", value="\u200b", inline=True)
 
-    # Toplam izin says zeti
+    # Toplam izin sayısı özeti
     eski_toplam = sum(1 for _, v in onceki.permissions if v)
     yeni_toplam = sum(1 for _, v in sonraki.permissions if v)
     fark = yeni_toplam - eski_toplam
 
     embed.add_field(
-        name=" zin zeti",
+        name="İzin Özeti",
         value=(
-            f"nceki: `{eski_toplam}` aktif\n"
-            f"imdiki: `{yeni_toplam}` aktif\n"
+            f"Önceki: `{eski_toplam}` aktif\n"
+            f"Şimdiki: `{yeni_toplam}` aktif\n"
             f"Fark: `{'+' if fark >= 0 else ''}{fark}`"
         ),
         inline=True
     )
-    embed.add_field(name=" Yapan",  value=sorumlu.mention if sorumlu else " Bilinmiyor", inline=True)
-    embed.add_field(name=" Rol ID", value=f"`{sonraki.id}`",                                inline=True)
+    embed.add_field(name="Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+    embed.add_field(name="Rol ID", value=f"`{sonraki.id}`", inline=True)
     embed.set_footer(text=zaman_damgasi())
 
     await log_gonder(sonraki.guild, "rol_log", embed)
@@ -1549,14 +1549,14 @@ async def on_message_delete(message: discord.Message):
 
     embed = discord.Embed(
         title="Mesaj Silindi",
-        description="Bir mesaj kanaldan kaldrld.",
+        description="Bir mesaj kanaldan kaldırıldı.",
         color=RENKLER["mesaj"],
         timestamp=datetime.now(timezone.utc)
     )
     embed.add_field(name="Yazar", value=f"{message.author.mention}  `{message.author.id}`", inline=True)
     embed.add_field(name="Kanal", value=message.channel.mention, inline=True)
     embed.add_field(name="Mesaj ID", value=f"`{message.id}`", inline=True)
-    embed.add_field(name="erik", value=message.content[:1024] or "*[Bo mesaj veya sadece medya]*", inline=False)
+    embed.add_field(name="İçerik", value=message.content[:1024] or "*[Boş mesaj veya sadece medya]*", inline=False)
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(message.guild, "mesaj_log", embed)
 
@@ -1567,7 +1567,7 @@ async def on_message_edit(onceki: discord.Message, sonraki: discord.Message):
         return
 
     embed = discord.Embed(
-        title="Mesaj Dzenlendi",
+        title="Mesaj Düzenlendi",
         description=f"[Mesaja git]({sonraki.jump_url})",
         color=RENKLER["bilgi"],
         timestamp=datetime.now(timezone.utc)
@@ -1588,7 +1588,7 @@ async def on_message_edit(onceki: discord.Message, sonraki: discord.Message):
 @bot.event
 async def on_voice_state_update(member: discord.Member, onceki: discord.VoiceState, sonraki: discord.VoiceState):
     if onceki.channel == sonraki.channel:
-        return  # Mute/deafen gibi deiiklikleri loglama
+        return
 
     anahtar = (member.guild.id, member.id)
     simdi_ts = time.time()
@@ -1603,15 +1603,15 @@ async def on_voice_state_update(member: discord.Member, onceki: discord.VoiceSta
     embed.add_field(name=" ye", value=f"{member.mention} `{member}`", inline=False)
 
     if onceki.channel is None:
-        embed.title = " Ses Kanalna Katld"
-        embed.add_field(name=" Kanal", value=sonraki.channel.mention, inline=True)
+        embed.title = "Ses Kanalına Katıldı"
+        embed.add_field(name="Kanal", value=sonraki.channel.mention, inline=True)
     elif sonraki.channel is None:
-        embed.title = " Ses Kanalndan Ayrld"
-        embed.add_field(name=" Kanal", value=onceki.channel.mention, inline=True)
+        embed.title = "Ses Kanalından Ayrıldı"
+        embed.add_field(name="Kanal", value=onceki.channel.mention, inline=True)
     else:
-        embed.title = " Ses Kanal Deitirildi"
-        embed.add_field(name=" nceki", value=onceki.channel.mention, inline=True)
-        embed.add_field(name=" Yeni",   value=sonraki.channel.mention, inline=True)
+        embed.title = "Ses Kanalı Değiştirildi"
+        embed.add_field(name="Önceki", value=onceki.channel.mention, inline=True)
+        embed.add_field(name="Yeni", value=sonraki.channel.mention, inline=True)
 
     embed.set_footer(text=zaman_damgasi())
     await log_gonder(member.guild, "ses_log", embed)
@@ -1633,7 +1633,7 @@ async def on_member_update(onceki: discord.Member, sonraki: discord.Member):
     Eer nceki on_member_update varsa onu SLP bununla DETRN.
     """
 
-    #  Timeout (Zaman Am) Kontrol 
+    # Timeout (Zaman Aşımı) Kontrolü
     # timed_out_until: None ise timeout yok, datetime ise aktif timeout
     eski_timeout = onceki.timed_out_until
     yeni_timeout = sonraki.timed_out_until
@@ -1643,34 +1643,34 @@ async def on_member_update(onceki: discord.Member, sonraki: discord.Member):
         sorumlu = await audit_log_bul(sonraki.guild, discord.AuditLogAction.member_update, hedef=sonraki)
 
         if yeni_timeout is not None:
-            # Timeout uyguland
+            # Timeout uygulandı
             bitis = yeni_timeout.strftime("%d.%m.%Y %H:%M UTC")
             embed = discord.Embed(
-                title=" Zaman Am Uyguland (Timeout)",
+                title="Zaman Aşımı Uygulandı",
                 color=RENKLER["mute"],
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.add_field(name=" ye",            value=f"{sonraki.mention} `{sonraki}`",                inline=True)
-            embed.add_field(name=" lemi Yapan",   value=sorumlu.mention if sorumlu else " Bilinmiyor", inline=True)
-            embed.add_field(name=" Biti Zaman",   value=f"`{bitis}`",                                    inline=False)
+            embed.add_field(name="Üye", value=f"{sonraki.mention} `{sonraki}`", inline=True)
+            embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
+            embed.add_field(name="Bitiş Zamanı", value=f"`{bitis}`", inline=False)
             embed.set_thumbnail(url=sonraki.display_avatar.url)
             embed.set_footer(text=zaman_damgasi())
             await log_gonder(sonraki.guild, "mute_log", embed)
 
         else:
-            # Timeout kaldrld (erken veya sre doldu)
+            # Timeout kaldırıldı
             embed = discord.Embed(
-                title=" Zaman Am Kaldrld",
+                title="Zaman Aşımı Kaldırıldı",
                 color=RENKLER["unban"],
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.add_field(name=" ye",           value=f"{sonraki.mention} `{sonraki}`",                inline=True)
-            embed.add_field(name=" lemi Yapan",  value=sorumlu.mention if sorumlu else " Otomatik",  inline=True)
+            embed.add_field(name="Üye", value=f"{sonraki.mention} `{sonraki}`", inline=True)
+            embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Otomatik", inline=True)
             embed.set_thumbnail(url=sonraki.display_avatar.url)
             embed.set_footer(text=zaman_damgasi())
             await log_gonder(sonraki.guild, "mute_log", embed)
 
-    #  Rol Deiiklii Kontrol 
+    # Rol Değişikliği Kontrolü
     eski_roller = set(onceki.roles)
     yeni_roller = set(sonraki.roles)
 
@@ -1684,11 +1684,11 @@ async def on_member_update(onceki: discord.Member, sonraki: discord.Member):
     sorumlu = await audit_log_bul(sonraki.guild, discord.AuditLogAction.member_role_update, hedef=sonraki)
 
     if eklenen_roller:
-        embed = discord.Embed(title=" yeye Rol Eklendi", color=RENKLER["giris"], timestamp=datetime.now(timezone.utc))
-        embed.add_field(name=" ye",           value=f"{sonraki.mention} `{sonraki}`",                inline=True)
-        embed.add_field(name=" lemi Yapan",  value=sorumlu.mention if sorumlu else " Bilinmiyor", inline=True)
+        embed = discord.Embed(title="Üyeye Rol Eklendi", color=RENKLER["giris"], timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="Üye", value=f"{sonraki.mention} `{sonraki}`", inline=True)
+        embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
         embed.add_field(
-            name=f" Eklenen Rol{'ler' if len(eklenen_roller) > 1 else ''}",
+            name=f"Eklenen Rol{'ler' if len(eklenen_roller) > 1 else ''}",
             value="\n".join(r.mention for r in eklenen_roller),
             inline=False
         )
@@ -1697,11 +1697,11 @@ async def on_member_update(onceki: discord.Member, sonraki: discord.Member):
         await log_gonder(sonraki.guild, "rol_log", embed)
 
     if cikarilan_roller:
-        embed = discord.Embed(title=" yeden Rol karld", color=RENKLER["cikis"], timestamp=datetime.now(timezone.utc))
-        embed.add_field(name=" ye",           value=f"{sonraki.mention} `{sonraki}`",                inline=True)
-        embed.add_field(name=" lemi Yapan",  value=sorumlu.mention if sorumlu else " Bilinmiyor", inline=True)
+        embed = discord.Embed(title="Üyeden Rol Çıkarıldı", color=RENKLER["cikis"], timestamp=datetime.now(timezone.utc))
+        embed.add_field(name="Üye", value=f"{sonraki.mention} `{sonraki}`", inline=True)
+        embed.add_field(name="İşlemi Yapan", value=sorumlu.mention if sorumlu else "Bilinmiyor", inline=True)
         embed.add_field(
-            name=f" karlan Rol{'ler' if len(cikarilan_roller) > 1 else ''}",
+            name=f"Çıkarılan Rol{'ler' if len(cikarilan_roller) > 1 else ''}",
             value="\n".join(r.mention for r in cikarilan_roller),
             inline=False
         )
@@ -2595,7 +2595,7 @@ async def logkur_hata(ctx, error):
 
 
 def mod_embed(baslik: str, renk: int, **alanlar) -> discord.Embed:
-    """Standart moderasyon embed'i oluturur."""
+    """Standart moderasyon embed'i oluşturur."""
     embed = discord.Embed(title=baslik, color=renk, timestamp=datetime.now(timezone.utc))
     for ad, deger in alanlar.items():
         embed.add_field(name=ad, value=deger, inline=True)
@@ -2637,29 +2637,29 @@ def otomatik_log_kanali_bul(guild: discord.Guild, tur: str):
 @bot.command(name="ban")
 @commands.has_permissions(ban_members=True)
 async def ban(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilmedi"):
-    """.ban @ye [sebep]"""
+    """.ban @uye [sebep]"""
     uye = await hedef_uye_bul(ctx, uye)
     if uye is None:
         await ctx.send(embed=kullanim_embedi("`.ban @uye [sebep]` veya bir mesaja yanit verip `.ban [sebep]`"))
         return
     if uye == ctx.author:
-        await ctx.send(" Kendinizi banlayamazsnz."); return
+        await ctx.send("Kendinizi banlayamazsınız."); return
     if uye.top_role >= ctx.author.top_role:
-        await ctx.send(" Bu yeyi banlayacak yetkiniz yok."); return
+        await ctx.send("Bu üyeyi banlayacak yetkiniz yok."); return
 
     await uye.ban(reason=f"{ctx.author} tarafndan: {sebep}", delete_message_seconds=0)
 
-    embed = mod_embed(" ye Banland", RENKLER["ban"],
-        **{" ye": f"{uye.mention} `{uye}`",
-           " Sebep": sebep,
-           " Yetkili": ctx.author.mention})
+    embed = mod_embed("Üye Banlandı", RENKLER["ban"],
+        **{"Üye": f"{uye.mention} `{uye}`",
+           "Sebep": sebep,
+           "Yetkili": ctx.author.mention})
     await ctx.send(embed=embed)
     await log_gonder(ctx.guild, "ban_log", embed)
 
     try:
         await uye.send(embed=discord.Embed(
-            title=" Sunucudan Banlandnz",
-            description=f"**{ctx.guild.name}** sunucusundan banlandnz.\n**Sebep:** {sebep}",
+            title="Sunucudan Banlandınız",
+            description=f"**{ctx.guild.name}** sunucusundan banlandınız.\n**Sebep:** {sebep}",
             color=RENKLER["ban"]
         ))
     except discord.Forbidden:
@@ -2669,39 +2669,39 @@ async def ban(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilme
 @ban.error
 async def ban_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Ban yetkine sahip deilsin.")
+        await ctx.send("Ban yetkisine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send(embed=hata_embedi("ye Bulunamad", "Belirttiin ye bulunamad veya sunucuda deil."))
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(embed=kullanim_embedi("`.ban @ye [sebep]`"))
+        await ctx.send(embed=kullanim_embedi("`.ban @uye [sebep]`"))
 
 
 #  !unban 
 @bot.command(name="unban")
 @commands.has_permissions(ban_members=True)
 async def unban(ctx, kullanici_id: int, *, sebep: str = "Sebep belirtilmedi"):
-    """.unban <kullanc_id> [sebep]"""
+    """.unban <kullanici_id> [sebep]"""
     try:
         kullanici = await bot.fetch_user(kullanici_id)
         await ctx.guild.unban(kullanici, reason=f"{ctx.author} tarafndan: {sebep}")
 
-        embed = mod_embed(" Ban Kaldrld", RENKLER["unban"],
-            **{" Kullanc": f"`{kullanici}`",
-               " Sebep": sebep,
-               " Yetkili": ctx.author.mention})
+        embed = mod_embed("Ban Kaldırıldı", RENKLER["unban"],
+            **{"Kullanıcı": f"`{kullanici}`",
+               "Sebep": sebep,
+               "Yetkili": ctx.author.mention})
         await ctx.send(embed=embed)
         await log_gonder(ctx.guild, "ban_log", embed)
 
     except discord.NotFound:
-        await ctx.send(" Bu ID'ye sahip banl bir kullanc bulunamad.")
+        await ctx.send("Bu ID'ye sahip banlı bir kullanıcı bulunamadı.")
 
 
 @unban.error
 async def unban_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Ban yetkine sahip deilsin.")
+        await ctx.send("Ban yetkisine sahip değilsin.")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(" Kullanm: ``.unban <kullanc_id> [sebep]`")
+        await ctx.send("Kullanım: `.unban <kullanici_id> [sebep]`")
 
 
 #  !kick 
@@ -2712,25 +2712,25 @@ async def kick(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilm
     if uye is None:
         await ctx.send(embed=kullanim_embedi("`.kick @uye [sebep]` veya bir mesaja yanit verip `.kick [sebep]`"))
         return
-    """.kick @ye [sebep]"""
+    """.kick @uye [sebep]"""
     if uye == ctx.author:
-        await ctx.send(" Kendinizi atamazsnz."); return
+        await ctx.send("Kendinizi atamazsınız."); return
     if uye.top_role >= ctx.author.top_role:
-        await ctx.send(" Bu yeyi atacak yetkiniz yok."); return
+        await ctx.send("Bu üyeyi atacak yetkiniz yok."); return
 
     await uye.kick(reason=f"{ctx.author} tarafndan: {sebep}")
 
-    embed = mod_embed(" ye Atld", RENKLER["mute"],
-        **{" ye": f"{uye.mention} `{uye}`",
-           " Sebep": sebep,
-           " Yetkili": ctx.author.mention})
+    embed = mod_embed("Üye Atıldı", RENKLER["mute"],
+        **{"Üye": f"{uye.mention} `{uye}`",
+           "Sebep": sebep,
+           "Yetkili": ctx.author.mention})
     await ctx.send(embed=embed)
     await log_gonder(ctx.guild, "mod_log", embed)
 
     try:
         await uye.send(embed=discord.Embed(
-            title=" Sunucudan Atldnz",
-            description=f"**{ctx.guild.name}** sunucusundan atldnz.\n**Sebep:** {sebep}",
+            title="Sunucudan Atıldınız",
+            description=f"**{ctx.guild.name}** sunucusundan atıldınız.\n**Sebep:** {sebep}",
             color=RENKLER["mute"]
         ))
     except discord.Forbidden:
@@ -2740,53 +2740,53 @@ async def kick(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilm
 @kick.error
 async def kick_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Kick yetkine sahip deilsin.")
+        await ctx.send("Kick yetkisine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send(embed=hata_embedi("ye Bulunamad", "Belirttiin ye bulunamad veya sunucuda deil."))
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(embed=kullanim_embedi("`.kick @ye [sebep]`"))
+        await ctx.send(embed=kullanim_embedi("`.kick @uye [sebep]`"))
 
 
-#  .mute (timeout) 
+# .mute (timeout)
 @bot.command(name="mute")
 @commands.has_permissions(moderate_members=True)
 async def mute(ctx, uye: discord.Member, *, arguman: str = ""):
     """
-    .mute @ye [sre] [sebep]
-    Tm argmanlar tek string olarak alr, sonra parse eder.
-    Bylece .mute @ye, .mute @ye sebep, .mute @ye 10m sebep hepsi alr.
+    .mute @uye [sure] [sebep]
+    Tüm argümanları tek string olarak alır, sonra parse eder.
+    Böylece .mute @uye, .mute @uye sebep, .mute @uye 10m sebep hepsi çalışır.
     """
     if uye == ctx.author:
-        await ctx.send(" Kendinizi susturamassnz."); return
+        await ctx.send("Kendinizi susturamazsınız."); return
     if uye.top_role >= ctx.author.top_role:
-        await ctx.send(" Bu yeyi susturacak yetkiniz yok."); return
+        await ctx.send("Bu üyeyi susturacak yetkiniz yok."); return
 
     birimler = {"s": 1, "m": 60, "h": 3600, "d": 86400}
     parcalar = arguman.strip().split()
 
-    # lk kelime sre formatnda m? (rn: 10m, 2h, 1d, 30s)
+    # İlk kelime süre formatında mı? (örn: 10m, 2h, 1d, 30s)
     if parcalar and parcalar[0][-1] in birimler and parcalar[0][:-1].isdigit():
         sure_str = parcalar[0]
         saniye = int(sure_str[:-1]) * birimler[sure_str[-1]]
         sebep = " ".join(parcalar[1:]) if len(parcalar) > 1 else "Sebep belirtilmedi"
         sure_goster = sure_str
         if saniye > 2419200:
-            await ctx.send(" Maksimum sre 28 gndr."); return
+            await ctx.send("Maksimum süre 28 gündür."); return
     else:
-        # Sre yok  tm argman sebep, sresiz mute
+        # Süre yoksa tüm argüman sebep, süresiz mute
         saniye = 2419200
-        sure_goster = "Sresiz"
+        sure_goster = "Süresiz"
         sebep = arguman.strip() if arguman.strip() else "Sebep belirtilmedi"
 
     bitis = datetime.now(timezone.utc) + timedelta(seconds=saniye)
     await uye.timeout(timedelta(seconds=saniye), reason=f"{ctx.author}: {sebep}")
 
-    embed = mod_embed(" ye Susturuldu", RENKLER["mute"],
-        **{" ye": f"{uye.mention} `{uye}`",
-           " Sre": sure_goster,
-           " Biti": bitis.strftime("%d.%m.%Y %H:%M UTC"),
-           " Sebep": sebep,
-           " Yetkili": ctx.author.mention})
+    embed = mod_embed("Üye Susturuldu", RENKLER["mute"],
+        **{"Üye": f"{uye.mention} `{uye}`",
+           "Süre": sure_goster,
+           "Bitiş": bitis.strftime("%d.%m.%Y %H:%M UTC"),
+           "Sebep": sebep,
+           "Yetkili": ctx.author.mention})
     await ctx.send(embed=embed)
     await log_gonder(ctx.guild, "mute_log", embed)
 
@@ -2794,24 +2794,24 @@ async def mute(ctx, uye: discord.Member, *, arguman: str = ""):
 @mute.error
 async def mute_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Timeout yetkine sahip deilsin.")
+        await ctx.send("Timeout yetkisine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send(embed=hata_embedi("ye Bulunamad", "Belirttiin ye bulunamad veya sunucuda deil."))
+        await ctx.send(embed=hata_embedi("Üye Bulunamadı", "Belirttiğin üye bulunamadı veya sunucuda değil."))
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(embed=kullanim_embedi("`.mute @ye [sre] [sebep]`"))
+        await ctx.send(embed=kullanim_embedi("`.mute @uye [sure] [sebep]`"))
 
 
 #  !unmute 
 @bot.command(name="unmute")
 @commands.has_permissions(moderate_members=True)
 async def unmute(ctx, uye: discord.Member, *, sebep: str = "Sebep belirtilmedi"):
-    """.unmute @ye [sebep]"""
+    """.unmute @uye [sebep]"""
     await uye.timeout(None, reason=f"{ctx.author}: {sebep}")
 
-    embed = mod_embed(" Timeout Kaldrld", RENKLER["unban"],
-        **{" ye": f"{uye.mention} `{uye}`",
-           " Sebep": sebep,
-           " Yetkili": ctx.author.mention})
+    embed = mod_embed("Timeout Kaldırıldı", RENKLER["unban"],
+        **{"Üye": f"{uye.mention} `{uye}`",
+           "Sebep": sebep,
+           "Yetkili": ctx.author.mention})
     await ctx.send(embed=embed)
     await log_gonder(ctx.guild, "mute_log", embed)
 
@@ -2847,9 +2847,9 @@ async def sil(ctx, adet: int = 5):
 @sil.error
 async def sil_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Mesaj silme yetkine sahip deilsin.")
+        await ctx.send("Mesaj silme yetkisine sahip değilsin.")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(" Kullanm: ``.sil [adet]`")
+        await ctx.send("Kullanım: `.sil [adet]`")
 
 
 #  !warn 
@@ -2860,8 +2860,8 @@ async def warn(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilm
     if uye is None:
         await ctx.send("Kullanim: `.warn @uye [sebep]` veya bir mesaja yanit verip `.warn [sebep]`")
         return
-    """.warn @ye [sebep]  yeye uyar verir ve settings.json'a kaydeder."""
-    # Uyary kaydet
+    """.warn @uye [sebep] - üyeye uyarı verir ve ayarlara kaydeder."""
+    # Uyarıyı kaydet
     ayarlar = ayarlari_yukle()
     guild_key = str(ctx.guild.id)
     if guild_key not in ayarlar:
@@ -2883,18 +2883,18 @@ async def warn(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilm
 
     toplam = len(ayarlar[guild_key]["uyarilar"][uye_key])
 
-    embed = mod_embed(f" Uyar Verildi ({toplam}. uyar)", RENKLER["mesaj"],
-        **{" ye": f"{uye.mention} `{uye}`",
-           " Sebep": sebep,
-           " Toplam Uyar": str(toplam),
-           " Yetkili": ctx.author.mention})
+    embed = mod_embed(f"Uyarı Verildi ({toplam}. uyarı)", RENKLER["mesaj"],
+        **{"Üye": f"{uye.mention} `{uye}`",
+           "Sebep": sebep,
+           "Toplam Uyarı": str(toplam),
+           "Yetkili": ctx.author.mention})
     await ctx.send(embed=embed)
     await log_gonder(ctx.guild, "mod_log", embed)
 
     try:
         await uye.send(embed=discord.Embed(
-            title=" Uyar Aldnz",
-            description=f"**{ctx.guild.name}** sunucusunda uyarldnz.\n**Sebep:** {sebep}\n**Toplam uyar:** {toplam}",
+            title="Uyarı Aldınız",
+            description=f"**{ctx.guild.name}** sunucusunda uyarıldınız.\n**Sebep:** {sebep}\n**Toplam uyarı:** {toplam}",
             color=RENKLER["mesaj"]
         ))
     except discord.Forbidden:
@@ -2904,31 +2904,31 @@ async def warn(ctx, uye: discord.Member = None, *, sebep: str = "Sebep belirtilm
 @warn.error
 async def warn_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Uyar verme yetkine sahip deilsin.")
+        await ctx.send("Uyarı verme yetkisine sahip değilsin.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send(" ye bulunamad.")
+        await ctx.send("Üye bulunamadı.")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(" Kullanm: ``.warn @ye [sebep]`")
+        await ctx.send("Kullanım: `.warn @uye [sebep]`")
 
 
 #  !uyarlar 
 @bot.command(name="uyarlar", aliases=["warnings", "uyarilar"])
 @commands.has_permissions(manage_messages=True)
 async def uyarilar(ctx, uye: discord.Member):
-    """.uyarlar @ye  yenin uyar gemiini gsterir."""
+    """.uyarlar @uye - üyenin uyarı geçmişini gösterir."""
     ayarlar = ayarlari_yukle()
     liste = ayarlar.get(str(ctx.guild.id), {}).get("uyarilar", {}).get(str(uye.id), [])
 
     if not liste:
         await ctx.send(embed=discord.Embed(
-            title=f" {uye.display_name}  Uyar Yok",
-            description="Bu yenin hi uyars bulunmuyor.",
+            title=f"{uye.display_name} - Uyarı Yok",
+            description="Bu üyenin hiç uyarısı bulunmuyor.",
             color=RENKLER["bilgi"]
         ))
         return
 
     embed = discord.Embed(
-        title=f" {uye.display_name}  {len(liste)} Uyar",
+        title=f"{uye.display_name} - {len(liste)} Uyarı",
         color=RENKLER["mesaj"],
         timestamp=datetime.now(timezone.utc)
     )
@@ -2952,9 +2952,9 @@ async def uyarilar(ctx, uye: discord.Member):
 @uyarilar.error
 async def uyarilar_hata(ctx, error):
     if isinstance(error, commands.MemberNotFound):
-        await ctx.send(" ye bulunamad.")
+        await ctx.send("Üye bulunamadı.")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(" Kullanm: ``.uyarlar @ye`")
+        await ctx.send("Kullanım: `.uyarilar @uye`")
 
 
 #  !uyarsil 
@@ -3501,11 +3501,11 @@ async def on_message(message: discord.Message):
                         except discord.Forbidden:
                             pass
                         uyari = await message.channel.send(embed=discord.Embed(
-                            title=" Bekleme Sresi Dolmad",
+                            title="Bekleme Süresi Dolmadı",
                             description=(
-                                f"{message.author.mention} Bu sunucuyla tekrar partner yapmak iin\n"
+                                f"{message.author.mention} Bu sunucuyla tekrar partner yapmak için\n"
                                 f"**{kalan // 60} dakika {kalan % 60} saniye** beklemeniz gerekiyor.\n"
-                                f"Son partner: <@{onceki_id}> tarafndan yapld."
+                                f"Son partner: <@{onceki_id}> tarafından yapıldı."
                             ),
                             color=RENKLER["mute"]
                         ))
@@ -3545,24 +3545,24 @@ async def on_message(message: discord.Message):
             yetkili_toplam = next((y["sayi"] for y in yetkili_liste if y["id"] == str(message.author.id)), 1)
 
             stats_embed = discord.Embed(
-                title=" Yeni Partner Yapld!",
-                description=f"{message.author.mention} yeni bir partnerlik yapt!",
+                title="Yeni Partner Yapıldı!",
+                description=f"{message.author.mention} yeni bir partnerlik yaptı!",
                 color=0x57F287,
                 timestamp=simdi
             )
-            stats_embed.add_field(name=" Sunucu Sras",  value=f"**#{sira}**",                              inline=True)
-            stats_embed.add_field(name=" Yetkili Sras", value=f"**#{yetkili_sira}** ({yetkili_toplam} partnerlik)", inline=True)
+            stats_embed.add_field(name="Sunucu Sırası", value=f"**#{sira}**", inline=True)
+            stats_embed.add_field(name="Yetkili Sırası", value=f"**#{yetkili_sira}** ({yetkili_toplam} partnerlik)", inline=True)
             stats_embed.add_field(
-                name=" Zamana Dayal:",
+                name="Zamana Dayalı",
                 value=(
-                    f" Gnlk: **{stats['gunluk']}**\n"
-                    f" Haftalk: **{stats['haftalik']}**\n"
-                    f" Aylk: **{stats['aylik']}**"
+                    f"Günlük: **{stats['gunluk']}**\n"
+                    f"Haftalık: **{stats['haftalik']}**\n"
+                    f"Aylık: **{stats['aylik']}**"
                 ),
                 inline=True
             )
-            stats_embed.add_field(name=" Toplam", value=f"**{stats['toplam']}**", inline=True)
-            stats_embed.set_footer(text=f"{bot.user.name}  Partner Sistemi")
+            stats_embed.add_field(name="Toplam", value=f"**{stats['toplam']}**", inline=True)
+            stats_embed.set_footer(text=f"{bot.user.name} • Partner Sistemi")
             if message.guild.icon:
                 stats_embed.set_thumbnail(url=message.guild.icon.url)
             await message.channel.send(embed=stats_embed)
@@ -3681,9 +3681,9 @@ async def slowmode(ctx, sure: int = 0):
 @slowmode.error
 async def slowmode_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Kanal ynetme yetkine sahip deilsin.")
+        await ctx.send("Kanal yönetme yetkisine sahip değilsin.")
     elif isinstance(error, commands.BadArgument):
-        await ctx.send(" Kullanm: `.slowmode [saniye]`")
+        await ctx.send("Kullanım: `.slowmode [saniye]`")
 
 
 # 
@@ -3694,10 +3694,10 @@ async def slowmode_hata(ctx, error):
 @commands.has_permissions(manage_guild=True)
 async def duyuru(ctx, kanal: discord.TextChannel = None, *, mesaj: str = None):
     if not mesaj:
-        await ctx.send(" Kullanm: `.duyuru #kanal mesajnz`"); return
+        await ctx.send("Kullanım: `.duyuru #kanal mesajiniz`"); return
     hedef = kanal or ctx.channel
     embed = discord.Embed(description=mesaj, color=0xE74C3C, timestamp=datetime.now(timezone.utc))
-    embed.set_author(name=f" {ctx.guild.name} Duyurusu", icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
+    embed.set_author(name=f"{ctx.guild.name} Duyurusu", icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
     embed.set_footer(text=f"Duyuran: {ctx.author}")
     await hedef.send("@everyone", embed=embed)
     try: await ctx.message.delete()
@@ -3706,7 +3706,7 @@ async def duyuru(ctx, kanal: discord.TextChannel = None, *, mesaj: str = None):
 @duyuru.error
 async def duyuru_hata(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send(" Sunucu ynetme yetkine sahip deilsin.")
+        await ctx.send("Sunucu yönetme yetkisine sahip değilsin.")
 
 
 # 
@@ -3720,16 +3720,16 @@ async def sunucu_bilgi(ctx):
     botlar = sum(1 for m in g.members if m.bot)
     embed = discord.Embed(title=f" {g.name}", color=0x5865F2, timestamp=datetime.now(timezone.utc))
     if g.icon: embed.set_thumbnail(url=g.icon.url)
-    embed.add_field(name=" Sahip",       value=g.owner.mention,                                    inline=True)
-    embed.add_field(name=" ID",          value=f"`{g.id}`",                                        inline=True)
-    embed.add_field(name=" Kurulu",     value=g.created_at.strftime("%d.%m.%Y"),                  inline=True)
-    embed.add_field(name=" Toplam ye",  value=str(g.member_count),                                inline=True)
-    embed.add_field(name=" nsan",       value=str(insan),                                         inline=True)
-    embed.add_field(name=" Bot",         value=str(botlar),                                        inline=True)
-    embed.add_field(name=" Metin Kanal", value=str(len(g.text_channels)),                          inline=True)
-    embed.add_field(name=" Ses Kanal",   value=str(len(g.voice_channels)),                         inline=True)
-    embed.add_field(name=" Rol",         value=str(len(g.roles) - 1),                             inline=True)
-    embed.add_field(name=" Boost",       value=f"{g.premium_subscription_count}  Seviye {g.premium_tier}", inline=True)
+    embed.add_field(name="Sahip", value=g.owner.mention, inline=True)
+    embed.add_field(name="ID", value=f"`{g.id}`", inline=True)
+    embed.add_field(name="Kuruluş", value=g.created_at.strftime("%d.%m.%Y"), inline=True)
+    embed.add_field(name="Toplam Üye", value=str(g.member_count), inline=True)
+    embed.add_field(name="İnsan", value=str(insan), inline=True)
+    embed.add_field(name="Bot", value=str(botlar), inline=True)
+    embed.add_field(name="Metin Kanalı", value=str(len(g.text_channels)), inline=True)
+    embed.add_field(name="Ses Kanalı", value=str(len(g.voice_channels)), inline=True)
+    embed.add_field(name="Rol", value=str(len(g.roles) - 1), inline=True)
+    embed.add_field(name="Boost", value=f"{g.premium_subscription_count} • Seviye {g.premium_tier}", inline=True)
     embed.set_footer(text=zaman_damgasi())
     await ctx.send(embed=embed)
 
@@ -3742,8 +3742,8 @@ async def sunucu_bilgi(ctx):
 async def afk_cmd(ctx, *, sebep: str = "AFK"):
     afk_kaydet(ctx.guild.id, ctx.author.id, sebep)
     embed = discord.Embed(
-        title=" AFK Moduna Geildi",
-        description=f"{ctx.author.mention} AFK moduna geti.\n**Sebep:** {sebep}",
+        title="AFK Moduna Geçildi",
+        description=f"{ctx.author.mention} AFK moduna geçti.\n**Sebep:** {sebep}",
         color=RENKLER["bilgi"]
     )
     embed.set_footer(text=zaman_damgasi())
@@ -4132,16 +4132,16 @@ async def ticket_panel(ctx):
                 def __init__(self):
                     super().__init__(timeout=None)
 
-                @discord.ui.button(label=" Kapat", style=discord.ButtonStyle.danger, custom_id=f"ticket_kapat_{ticket_kanal.id}")
+                @discord.ui.button(label="Kapat", style=discord.ButtonStyle.danger, custom_id=f"ticket_kapat_{ticket_kanal.id}")
                 async def kapat(self, i2: discord.Interaction, b: discord.ui.Button):
                     await _ticket_kapat_logu_ve_transkript(ticket_kanal, i2.user, log_id)
-                    await i2.response.send_message("Ticket kapatlyor...", ephemeral=True)
+                    await i2.response.send_message("Ticket kapatılıyor...", ephemeral=True)
 
                     if False and log_id:
                         log_k = i2.guild.get_channel(log_id)
                         if log_k:
                             await log_k.send(embed=discord.Embed(
-                                title=" Ticket Kapatld",
+                                title="Ticket Kapatıldı",
                                 description=(
                                     f"**Ticket:** `{ticket_kanal.name}`\n"
                                     f"**Sahip:** {interaction.user.mention}\n"
@@ -4149,14 +4149,14 @@ async def ticket_panel(ctx):
                                 ),
                                 color=RENKLER["hata"], timestamp=datetime.now(timezone.utc)
                             ))
-                    await ticket_kanal.delete(reason=f"{i2.user} tarafndan kapatld")
+                    await ticket_kanal.delete(reason=f"{i2.user} tarafından kapatıldı")
 
-                @discord.ui.button(label=" ye Ekle", style=discord.ButtonStyle.secondary, custom_id=f"ticket_uyeekle_{ticket_kanal.id}")
+                @discord.ui.button(label="Üye Ekle", style=discord.ButtonStyle.secondary, custom_id=f"ticket_uyeekle_{ticket_kanal.id}")
                 async def uye_ekle(self, i2: discord.Interaction, b: discord.ui.Button):
                     if destek_rolleri and not any(rol in i2.user.roles for rol in destek_rolleri) and not i2.user.guild_permissions.administrator:
-                        await i2.response.send_message(" Bu ilem iin destek rol veya ynetici yetkisi gerekli.", ephemeral=True)
+                        await i2.response.send_message("Bu işlem için destek rolü veya yönetici yetkisi gerekli.", ephemeral=True)
                         return
-                    await i2.response.send_message("Eklemek istediin kullancy etiketle: (rn: @kullanc)", ephemeral=True)
+                    await i2.response.send_message("Eklemek istediğin kullanıcıyı etiketle: (örn: @kullanici)", ephemeral=True)
 
                     def check(m):
                         return m.author == i2.user and m.channel == ticket_kanal and m.mentions
@@ -4165,7 +4165,7 @@ async def ticket_panel(ctx):
                         yanit = await bot.wait_for("message", check=check, timeout=30)
                         for uye in yanit.mentions:
                             await ticket_kanal.set_permissions(uye, read_messages=True, send_messages=True)
-                        await ticket_kanal.send(f" {' '.join(u.mention for u in yanit.mentions)} ticketa eklendi.")
+                        await ticket_kanal.send(f"{' '.join(u.mention for u in yanit.mentions)} tickete eklendi.")
                         await yanit.delete()
                     except asyncio.TimeoutError:
                         pass
@@ -4173,27 +4173,27 @@ async def ticket_panel(ctx):
                 @discord.ui.button(label=" Talep Al", style=discord.ButtonStyle.success, custom_id=f"ticket_talep_{ticket_kanal.id}")
                 async def talep_al(self, i2: discord.Interaction, b: discord.ui.Button):
                     if destek_rolleri and not any(rol in i2.user.roles for rol in destek_rolleri) and not i2.user.guild_permissions.administrator:
-                        await i2.response.send_message(" Bu ilem iin destek rol gerekli.", ephemeral=True); return
+                        await i2.response.send_message("Bu işlem için destek rolü gerekli.", ephemeral=True); return
                     await ticket_kanal.edit(topic=f"{ticket_kanal.topic} | Talep: {i2.user}")
-                    await i2.response.send_message(f" Ticket {i2.user.mention} tarafndan talep alnd.")
+                    await i2.response.send_message(f"Ticket {i2.user.mention} tarafından talep alındı.")
 
             ac_embed = discord.Embed(
-                title=f" Ticket #{sayi:04d}",
+                title=f"Ticket #{sayi:04d}",
                 description=(
                     f"Merhaba {interaction.user.mention}!\n"
-                    f"Destek ekibimiz en ksa srede yardmc olacak.\n\n"
-                    f"Ticket kapatmak iin  butonunu kullan."
+                    f"Destek ekibimiz en kısa sürede yardımcı olacak.\n\n"
+                    f"Ticket kapatmak için butonları kullan."
                 ),
                 color=0x57F287, timestamp=datetime.now(timezone.utc)
             )
-            ac_embed.set_footer(text=f"Ticket #{sayi:04d}  {zaman_damgasi()}")
+            ac_embed.set_footer(text=f"Ticket #{sayi:04d} • {zaman_damgasi()}")
 
             await ticket_kanal.send(
                 content=" ".join([interaction.user.mention] + [rol.mention for rol in destek_rolleri]),
                 embed=ac_embed,
                 view=TicketKontrolView()
             )
-            await interaction.response.send_message(f" Ticketn ald: {ticket_kanal.mention}", ephemeral=True)
+            await interaction.response.send_message(f"Ticketın açıldı: {ticket_kanal.mention}", ephemeral=True)
 
             if log_id:
                 log_k = interaction.guild.get_channel(log_id)
@@ -7210,8 +7210,8 @@ async def guvenlik_kapat(ctx):
     ayar["aktif"] = False
     _guvenlik_ayar_kaydet(ctx.guild.id, ayar)
     await ctx.send(embed=discord.Embed(
-        title="Gvenlik Sistemi Kapatld",
-        description="Sunucu guvenlik limitleri devre disi birakildi.",
+        title="Güvenlik Sistemi Kapatıldı",
+        description="Sunucu güvenlik limitleri devre dışı bırakıldı.",
         color=RENKLER["hata"],
         timestamp=datetime.now(timezone.utc)
     ))
@@ -7221,7 +7221,7 @@ async def guvenlik_kapat(ctx):
 @commands.has_permissions(administrator=True)
 async def guvenlik_izin_ekle(ctx, hedef = None):
     if hedef is None:
-        await ctx.send("Kullanm: `.guvenlikizin @uye` veya `.guvenlikizin @rol`")
+        await ctx.send("Kullanım: `.guvenlikizin @uye` veya `.guvenlikizin @rol`")
         return
     hedef_obj = None
     if ctx.message.role_mentions:
@@ -7229,15 +7229,15 @@ async def guvenlik_izin_ekle(ctx, hedef = None):
     elif ctx.message.mentions:
         hedef_obj = ctx.message.mentions[0]
     if hedef_obj is None:
-        await ctx.send("Ltfen bir ye veya rol etiketle.")
+        await ctx.send("Lütfen bir üye veya rol etiketle.")
         return
     ayar = _guvenlik_ayar_al(ctx.guild.id)
     whitelist = list(dict.fromkeys((ayar.get("whitelist_ids", []) or []) + [hedef_obj.id]))
     ayar["whitelist_ids"] = whitelist
     _guvenlik_ayar_kaydet(ctx.guild.id, ayar)
     await ctx.send(embed=discord.Embed(
-        title="Whitelist Gncellendi",
-        description=f"{hedef_obj.mention} gvenlik whitelist listesine eklendi.",
+        title="Whitelist Güncellendi",
+        description=f"{hedef_obj.mention} güvenlik whitelist listesine eklendi.",
         color=RENKLER["basari"],
         timestamp=datetime.now(timezone.utc)
     ))
@@ -7247,7 +7247,7 @@ async def guvenlik_izin_ekle(ctx, hedef = None):
 @commands.has_permissions(administrator=True)
 async def guvenlik_izin_sil(ctx, hedef = None):
     if hedef is None:
-        await ctx.send("Kullanm: `.guvenlikizinsil @uye` veya `.guvenlikizinsil @rol`")
+        await ctx.send("Kullanım: `.guvenlikizinsil @uye` veya `.guvenlikizinsil @rol`")
         return
     hedef_obj = None
     if ctx.message.role_mentions:
@@ -7255,7 +7255,7 @@ async def guvenlik_izin_sil(ctx, hedef = None):
     elif ctx.message.mentions:
         hedef_obj = ctx.message.mentions[0]
     if hedef_obj is None:
-        await ctx.send("Ltfen bir ye veya rol etiketle.")
+        await ctx.send("Lütfen bir üye veya rol etiketle.")
         return
     ayar = _guvenlik_ayar_al(ctx.guild.id)
     ayar["whitelist_ids"] = [x for x in (ayar.get("whitelist_ids", []) or []) if x != hedef_obj.id]
