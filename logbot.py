@@ -281,11 +281,15 @@ async def hedef_uye_bul(ctx: commands.Context, *args):
     return None, args_list
 
 
-def format_welcome_text(text: str, member: discord.Member) -> str:
-    """Hoş geldin mesajlarındaki değişkenleri değiştirir."""
+def format_welcome_text(text: str, member: discord.Member, role_id: str | None = None) -> str:
+    """Hoş geldin mesajlarındaki değişkenleri ve rol etiketini değiştirir."""
     if not text:
         return ""
     created_at = member.created_at.strftime("%d.%m.%Y")
+
+    clean_role_id = re.sub(r"\D", "", str(role_id or ""))
+    role_mention = f"<@&{clean_role_id}>" if clean_role_id else ""
+
     replacements = {
         "{uye}": member.mention,
         "{uye_etiket}": member.mention,
@@ -295,9 +299,16 @@ def format_welcome_text(text: str, member: discord.Member) -> str:
         "{sunucu_adi}": member.guild.name,
         "{uye_sayisi}": str(member.guild.member_count),
         "{hesap_tarihi}": created_at,
+        "{rol}": role_mention,
+        "{rol_etiket}": role_mention,
     }
     for key, val in replacements.items():
         text = text.replace(key, val)
+
+    # Eğer role_id belirtilmişse ve mesajda henüz yer almıyorsa dış mesaja otomatik ekle
+    if role_mention and role_mention not in text:
+        text = f"{text} {role_mention}".strip()
+
     return text
 
 
@@ -662,12 +673,22 @@ class HosgeldinModal(discord.ui.Modal, title="Hoş Geldin Mesajı Özelleştir")
         self.dis_mesaj = discord.ui.TextInput(
             label="Dış Mesaj (Etiketli)",
             style=discord.TextStyle.short,
-            placeholder="Örn: HOŞ GELDİNN {uye_etiket}",
+            placeholder="Örn: HOŞ GELDİNN {uye_etiket} {rol_etiket}",
             default=current_data.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ,
             required=False,
             max_length=200
         )
         self.add_item(self.dis_mesaj)
+
+        self.rol_id = discord.ui.TextInput(
+            label="Etiketlenecek Rol ID (İsteğe Bağlı)",
+            style=discord.TextStyle.short,
+            placeholder="Örn: 1484564569446944949",
+            default=current_data.get("rol_id") or "",
+            required=False,
+            max_length=30
+        )
+        self.add_item(self.rol_id)
 
         self.baslik = discord.ui.TextInput(
             label="Embed Başlığı",
@@ -705,15 +726,16 @@ class HosgeldinModal(discord.ui.Modal, title="Hoş Geldin Mesajı Özelleştir")
             "aktif": True,
             "kanal_id": self.channel.id,
             "dis_mesaj": self.dis_mesaj.value.strip(),
+            "rol_id": self.rol_id.value.strip(),
             "baslik": self.baslik.value.strip(),
             "aciklama": self.aciklama.value.strip(),
             "resim_url": self.resim_url.value.strip()
         })
         set_guild_section(interaction.guild_id, "hosgeldin_sistemi", data)
 
-        dis_mesaj = format_welcome_text(data["dis_mesaj"], interaction.user)
-        baslik = format_welcome_text(data["baslik"], interaction.user)
-        aciklama = format_welcome_text(data["aciklama"], interaction.user)
+        dis_mesaj = format_welcome_text(data["dis_mesaj"], interaction.user, data["rol_id"])
+        baslik = format_welcome_text(data["baslik"], interaction.user, data["rol_id"])
+        aciklama = format_welcome_text(data["aciklama"], interaction.user, data["rol_id"])
 
         e = embed(baslik or "Aramıza Hoş Geldin!", aciklama, MAVI)
         if data["resim_url"]:
@@ -755,9 +777,9 @@ class HosgeldinKurulumView(discord.ui.View):
             await interaction.response.send_message(embed=error_embed("Sistem Pasif", "Önce '⚙️ Formu Aç ve Kur' butonuna basarak ayarlarınızı kaydedin."), ephemeral=True)
             return
 
-        dis_mesaj = format_welcome_text(data.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ, interaction.user)
-        baslik = format_welcome_text(data.get("baslik") or DEFAULT_HOSGELDIN_BASLIK, interaction.user)
-        aciklama = format_welcome_text(data.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA, interaction.user)
+        dis_mesaj = format_welcome_text(data.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ, interaction.user, data.get("rol_id"))
+        baslik = format_welcome_text(data.get("baslik") or DEFAULT_HOSGELDIN_BASLIK, interaction.user, data.get("rol_id"))
+        aciklama = format_welcome_text(data.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA, interaction.user, data.get("rol_id"))
         resim_url = data.get("resim_url")
 
         e = embed(baslik, aciklama, MAVI)
@@ -794,9 +816,10 @@ async def hosgeldin_kur(ctx, kanal: discord.TextChannel = None):
     e = embed(
         "🔹 Gelişmiş Hoş Geldin Kurulum Formu",
         f"**Seçilen Kanal:** {target_channel.mention}\n**Mevcut Durum:** `{durum_metni}`\n\n"
-        "Aşağıdaki **⚙️ Formu Aç ve Kur (Modal)** butonuna basarak tüm metinleri, başlığı ve GIF görselini pop-up (modal) form penceresinde kolayca ayarlayabilirsiniz!\n\n"
+        "Aşağıdaki **⚙️ Formu Aç ve Kur (Modal)** butonuna basarak tüm metinleri, etiketlenecek rolü, başlığı ve GIF görselini pop-up form penceresinde kolayca ayarlayabilirsiniz!\n\n"
         "**Formda Kullanabileceğiniz Değişkenler:**\n"
         "`{uye}` veya `{uye_etiket}` ➔ Üye Etiketi\n"
+        "`{rol}` veya `{rol_etiket}` ➔ Etiketlenecek Rol\n"
         "`{uye_adi}` ➔ Üye Kullanıcı Adı\n"
         "`{sunucu}` ➔ Sunucu Adı\n"
         "`{uye_sayisi}` ➔ Toplam Üye Sayısı\n"
@@ -1568,7 +1591,7 @@ async def ping(ctx):
 async def gelismis_yardim(ctx):
     e = embed("🔹 LogBot Komut Rehberi 🔹", "Tüm moderasyon, koruma ve sistem komutları aşağıda listelenmiştir.", MAVI)
     e.add_field(name="🛡️ Moderasyon & Rol Yönetimi", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `herkeserol`, `herkeserolsil`, `otorol`", inline=False)
-    e.add_field(name="👋 Hoş Geldin Sistemi", value="`hosgeldin-kur` *(Form (Modal) pencereli tek komutla tüm metin/resim kurulumu)*", inline=False)
+    e.add_field(name="👋 Hoş Geldin Sistemi", value="`hosgeldin-kur` *(Form (Modal) pencereli tek komutla metin/rol/görsel kurulumu)*", inline=False)
     e.add_field(name="🔒 Koruma Sistemleri", value="`kufur-kur`, `kufur-kapat`, `link-koruma-aktif`, `link-koruma-kapat`, `spam-koruma-kur`, `spam-koruma-kapat`, `spam-koruma-durum`", inline=False)
     e.add_field(name="🎉 Çekiliş & Bilet & Sistem", value="`gstart`, `gend`, `greroll`, `glist`, `gdelete`, `ginfo`, `ticketkur`, `ticketpanel`, `ticketkapat`, `afk`, `logkur`, `log-kur`, `log-kaldir`, `log-durum`", inline=False)
     e.add_field(name="📢 Duyuru", value=f"`{PREFIX}duyuru #kanal mesaj [gif-linki]`", inline=False)
@@ -1699,9 +1722,9 @@ async def on_member_join(member: discord.Member):
         if kanal_id:
             kanal = member.guild.get_channel(int(kanal_id))
             if isinstance(kanal, discord.TextChannel):
-                dis_mesaj = format_welcome_text(hosgeldin.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ, member)
-                baslik = format_welcome_text(hosgeldin.get("baslik") or DEFAULT_HOSGELDIN_BASLIK, member)
-                aciklama = format_welcome_text(hosgeldin.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA, member)
+                dis_mesaj = format_welcome_text(hosgeldin.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ, member, hosgeldin.get("rol_id"))
+                baslik = format_welcome_text(hosgeldin.get("baslik") or DEFAULT_HOSGELDIN_BASLIK, member, hosgeldin.get("rol_id"))
+                aciklama = format_welcome_text(hosgeldin.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA, member, hosgeldin.get("rol_id"))
                 resim_url = hosgeldin.get("resim_url")
 
                 e = embed(baslik, aciklama, MAVI)
