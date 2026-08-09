@@ -562,7 +562,7 @@ class LinkKurulumModal(discord.ui.Modal, title="Link Koruması Yapılandırma"):
     def __init__(self, current_data: dict):
         super().__init__()
         self.muaf_roller = discord.ui.TextInput(
-            label="Muaf Rol ID veya Etiketleri (Virgülle Ayrılmış)",
+            label="Muaf Roller (Virgülle Ayrılmış)",
             style=discord.TextStyle.short,
             placeholder="Örn: 1484564569446944949, @Yönetim",
             default=", ".join(str(r) for r in current_data.get("muaf_roller", [])),
@@ -571,7 +571,7 @@ class LinkKurulumModal(discord.ui.Modal, title="Link Koruması Yapılandırma"):
         self.add_item(self.muaf_roller)
 
         self.muaf_kanallar = discord.ui.TextInput(
-            label="Muaf Kanal ID veya Etiketleri (Virgülle Ayrılmış)",
+            label="Muaf Kanallar (Virgülle Ayrılmış)",
             style=discord.TextStyle.short,
             placeholder="Örn: 1484564647704137879, #duyuru",
             default=", ".join(str(c) for c in current_data.get("muaf_kanallar", [])),
@@ -1273,7 +1273,7 @@ class HosgeldinModal(discord.ui.Modal, title="Hoş Geldin Mesajı Özelleştir")
         self.add_item(self.dis_mesaj)
 
         self.rol_id = discord.ui.TextInput(
-            label="Dış Mesajda Etiketlenecek Rol ID (İsteğe Bağlı)",
+            label="Dış Mesaj Rol ID (İsteğe Bağlı)",
             style=discord.TextStyle.short,
             placeholder="Örn: 1484564569446944949",
             default=current_data.get("rol_id") or "",
