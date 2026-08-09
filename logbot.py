@@ -274,7 +274,7 @@ async def hedef_uye_bul(ctx: commands.Context, *args):
             try:
                 fetched = await ctx.guild.fetch_member(int(clean_id))
                 return fetched, args_list[1:]
-            except (discord.HTTPException, NotFound):
+            except (discord.HTTPException, discord.NotFound):
                 return discord.Object(id=int(clean_id)), args_list[1:]
 
         found = discord.utils.find(
@@ -822,4 +822,6 @@ async def kufur_kur(ctx):
         "Aşağıdaki **⚙️ Kelimeleri Düzenle ve Kur (Modal)** butonuna basarak engellenecek küfür kelimelerini pop-up form penceresinden dilediğiniz gibi düzenleyebilir ve aktif edebilirsiniz!",
         MAVI
     )
-    await ctx.send(embed=e, view=
+    await ctx.send(embed=e, view=KufurKurulumView(ctx.author.id))
+
+
