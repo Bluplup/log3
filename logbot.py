@@ -326,6 +326,7 @@ def format_welcome_text(text: str, member: discord.Member, role_id: str | None =
 intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
+intents.presences = True
 intents.bans = True
 intents.messages = True
 intents.message_content = True
@@ -2031,11 +2032,40 @@ async def avatar(ctx, *args):
 @bot.command(name="sunucu", aliases=["serverinfo"])
 async def sunucu(ctx):
     g = ctx.guild
+
+    toplam_uye = g.member_count
+    botlar = sum(1 for m in g.members if m.bot)
+    kisiler = toplam_uye - botlar
+    online = sum(1 for m in g.members if m.status != discord.Status.offline and not m.bot)
+
+    seste_olanlar = sum(len(vc.members) for vc in g.voice_channels)
+    aktif_ses_kanali = sum(1 for vc in g.voice_channels if len(vc.members) > 0)
+
+    tag_alanlar = 0
+    for m in g.members:
+        pg = getattr(m, "primary_guild", None)
+        if pg and getattr(pg, "identity_enabled", False) and getattr(pg, "identity_guild_id", None) == g.id:
+            tag_alanlar += 1
+
+    metin_kanal = len(g.text_channels)
+    ses_kanal = len(g.voice_channels)
+    kategori = len(g.categories)
+
     e = embed("🔹 Sunucu Bilgileri", f"**{g.name}** sunucusu genel istatistikleri:", MAVI)
-    e.add_field(name="👥 Üye Sayısı", value=str(g.member_count), inline=True)
-    e.add_field(name="💬 Kanal Sayısı", value=str(len(g.channels)), inline=True)
+    e.add_field(name="👥 Toplam Üye", value=str(toplam_uye), inline=True)
+    e.add_field(name="🙋 Kişi Sayısı", value=str(kisiler), inline=True)
+    e.add_field(name="🤖 Bot Sayısı", value=str(botlar), inline=True)
+    e.add_field(name="🟢 Çevrimiçi Üye", value=str(online), inline=True)
+    e.add_field(name="🔊 Seste Olan Kişi", value=str(seste_olanlar), inline=True)
+    e.add_field(name="📡 Aktif Ses Kanalı", value=f"{aktif_ses_kanali} / {ses_kanal}", inline=True)
+    e.add_field(name="🏷️ Sunucu Etiketi Almış", value=str(tag_alanlar), inline=True)
+    e.add_field(name="💬 Metin Kanalı", value=str(metin_kanal), inline=True)
+    e.add_field(name="📁 Kategori Sayısı", value=str(kategori), inline=True)
     e.add_field(name="🎭 Rol Sayısı", value=str(len(g.roles)), inline=True)
     e.add_field(name="📅 Kuruluş Tarihi", value=g.created_at.strftime("%d.%m.%Y %H:%M"), inline=True)
+    if g.owner:
+        e.add_field(name="👑 Sunucu Sahibi", value=g.owner.mention, inline=True)
+    e.add_field(name="🚀 Boost Seviyesi", value=f"Seviye {g.premium_tier} ({g.premium_subscription_count} boost)", inline=True)
     if g.icon:
         e.set_thumbnail(url=g.icon.url)
     await ctx.send(embed=e)
@@ -2051,7 +2081,7 @@ async def gelismis_yardim(ctx):
     e.add_field(name="⚙️ Modal (Form) Kurulum Komutları", value="`hosgeldin-kur`, `log-kur`, `kufur-kur`, `link-kur`, `spam-kur`, `jailkur`, `ticketkur`", inline=False)
     e.add_field(name="🛡️ Moderasyon & Rol Yönetimi", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `herkeserol`, `herkeserolsil`, `otorol`", inline=False)
     e.add_field(name="🔒 Koruma & Güvenlik Kapatma", value="`kufur-kapat`, `link-koruma-kapat`, `spam-koruma-kapat`", inline=False)
-    e.add_field(name="🎉 Çekiliş & Bilet & Genel", value="`gstart`, `gend`, `greroll`, `glist`, `gdelete`, `ginfo`, `ticketpanel`, `ticketkapat`, `afk`, `duyuru`", inline=False)
+    e.add_field(name="🎉 Çekiliş & Bilet & Genel", value="`gstart`, `gend`, `greroll`, `glist`, `gdelete`, `ginfo`, `ticketpanel`, `ticketkapat`, `afk`, `duyuru`, `say`", inline=False)
     await ctx.send(embed=e)
 
 
