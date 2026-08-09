@@ -530,42 +530,131 @@ async def sil(ctx, adet: int = 5):
         pass
 
 
-@bot.command(name="tumrollerisil", aliases=["tum-rolleri-sil", "rollerisil", "rolleri-sil", "deleteallroles"])
+@bot.command(name="yetkilirolekle", aliases=["yetkili-rol-ekle", "yetkilirololustur", "yetkili-rolleri-kur"])
 @commands.has_permissions(administrator=True)
-async def tumrollerisil(ctx):
+async def yetkilirolekle(ctx):
     """
-    Sunucudaki tüm silinebilir rolleri temizler.
-    (@everyone, entegrasyon rolleri ve botun üstündeki roller hariç)
+    Sunucuya 15 adet hiyerarşik yetkili rolü ve özel görev rollerini oluşturur:
+    - 5 Adet Alt Yetkili Rolü (Temel Erişim)
+    - 5 Adet Üst Yetkili Rolü (Gelişmiş Erişim & Denetim)
+    - 5 Adet Yönetim Rolü (Yönetici İzni)
+    - 4 Adet Görev Rolü: Chat Yetkilisi, Ses Yetkilisi, Partner Yetkilisi, Etkinlik Yetkilisi
     """
-    silinebilir_roller = [
-        role for role in ctx.guild.roles
-        if role != ctx.guild.default_role
-        and not role.managed
-        and role < ctx.guild.me.top_role
+    await ctx.send(embed=embed("🔹 Yetkili Rol Sistemi Kuruluyor", "15 adet hiyerarşik yetkili rolü ve özel görev rolleriniz oluşturulup izinleri ayarlanıyor...", MAVI))
+
+    # Hiyerarşi İzinleri
+    alt_yetki_perm = discord.Permissions(
+        read_message_history=True,
+        send_messages=True,
+        view_channel=True,
+        change_nickname=True
+    )
+
+    ust_yetki_perm = discord.Permissions(
+        view_audit_log=True,
+        read_message_history=True,
+        send_messages=True,
+        view_channel=True,
+        change_nickname=True,
+        manage_nicknames=True
+    )
+
+    yonetim_perm = discord.Permissions(administrator=True)
+
+    # Görev Rolü İzinleri
+    chat_yetkili_perm = discord.Permissions(
+        manage_messages=True,
+        moderate_members=True,
+        mute_members=True,
+        read_message_history=True,
+        send_messages=True,
+        view_channel=True
+    )
+
+    ses_yetkili_perm = discord.Permissions(
+        priority_speaker=True,
+        move_members=True,
+        deafen_members=True,
+        mute_members=True,
+        read_message_history=True,
+        send_messages=True,
+        view_channel=True
+    )
+
+    varsayilan_perm = discord.Permissions.none()
+
+    rol_gruplari = [
+        ("Alt Yetkili", [
+            ("・ Alt Yetkili I", discord.Color.from_rgb(116, 185, 255)),
+            ("・ Alt Yetkili II", discord.Color.from_rgb(116, 185, 255)),
+            ("・ Alt Yetkili III", discord.Color.from_rgb(116, 185, 255)),
+            ("・ Alt Yetkili IV", discord.Color.from_rgb(116, 185, 255)),
+            ("・ Alt Yetkili V", discord.Color.from_rgb(116, 185, 255)),
+        ], alt_yetki_perm),
+        ("Üst Yetkili", [
+            ("・ Üst Yetkili I", discord.Color.from_rgb(9, 132, 227)),
+            ("・ Üst Yetkili II", discord.Color.from_rgb(9, 132, 227)),
+            ("・ Üst Yetkili III", discord.Color.from_rgb(9, 132, 227)),
+            ("・ Üst Yetkili IV", discord.Color.from_rgb(9, 132, 227)),
+            ("・ Üst Yetkili V", discord.Color.from_rgb(9, 132, 227)),
+        ], ust_yetki_perm),
+        ("Yönetim", [
+            ("・ Yönetim I", discord.Color.from_rgb(30, 58, 138)),
+            ("・ Yönetim II", discord.Color.from_rgb(30, 58, 138)),
+            ("・ Yönetim III", discord.Color.from_rgb(30, 58, 138)),
+            ("・ Yönetim IV", discord.Color.from_rgb(30, 58, 138)),
+            ("・ Yönetim V", discord.Color.from_rgb(30, 58, 138)),
+        ], yonetim_perm),
     ]
 
-    if not silinebilir_roller:
-        await ctx.send(embed=embed("🔹 Rol Silme İşlemi", "Silinebilecek uygun rol bulunamadı (Bot rollerine veya yetkisi üstün rollere müdahale edilemez).", MAVI))
-        return
+    gorev_rolleri = [
+        ("・ Chat Yetkilisi", discord.Color.from_rgb(0, 206, 201), chat_yetkili_perm),
+        ("・ Ses Yetkilisi", discord.Color.from_rgb(108, 92, 231), ses_yetkili_perm),
+        ("・ Partner Yetkilisi", discord.Color.from_rgb(253, 203, 110), varsayilan_perm),
+        ("・ Etkinlik Yetkilisi", discord.Color.from_rgb(232, 67, 147), varsayilan_perm),
+    ]
 
-    await ctx.send(embed=embed("🔹 Rol Silme Başlatıldı", f"Toplam **{len(silinebilir_roller)}** adet rol siliniyor, lütfen bekleyin...", MAVI))
+    olusturulan = {"Alt Yetkili": [], "Üst Yetkili": [], "Yönetim": [], "Görev Rolleri": []}
 
-    basarili = 0
-    hatali = 0
+    # 1. Hiyerarşi rollerini oluştur
+    for grup_adi, roller, perms in rol_gruplari:
+        for r_name, r_color in roller:
+            try:
+                new_role = await ctx.guild.create_role(
+                    name=r_name,
+                    permissions=perms,
+                    color=r_color,
+                    hoist=True,
+                    mentionable=True,
+                    reason=f"{ctx.author} tarafından yetkili rol kurulumu yapıldı."
+                )
+                olusturulan[grup_adi].append(new_role.mention)
+                await asyncio.sleep(0.3)
+            except discord.HTTPException as exc:
+                print(f"[HATA] Rol oluşturulamadı: {r_name} - {exc}")
 
-    for role in silinebilir_roller:
+    # 2. Özel Görev rollerini oluştur
+    for r_name, r_color, perms in gorev_rolleri:
         try:
-            await role.delete(reason=f"{ctx.author} tarafından tüm roller sil komutu çalıştırıldı.")
-            basarili += 1
-            await asyncio.sleep(0.4)
-        except (discord.Forbidden, discord.HTTPException):
-            hatali += 1
+            new_role = await ctx.guild.create_role(
+                name=r_name,
+                permissions=perms,
+                color=r_color,
+                hoist=True,
+                mentionable=True,
+                reason=f"{ctx.author} tarafından özel görev rolü oluşturuldu."
+            )
+            olusturulan["Görev Rolleri"].append(new_role.mention)
+            await asyncio.sleep(0.3)
+        except discord.HTTPException as exc:
+            print(f"[HATA] Görev rolü oluşturulamadı: {r_name} - {exc}")
 
-    e = embed(
-        "🔹 Tüm Roller Silindi",
-        f"**Başarıyla Silinen Rol:** {basarili}\n**Silinemeyen / Hata:** {hatali}\n**Yetkili:** {ctx.author.mention}",
-        MAVI
-    )
+    e = embed("🔹 Yetkili Rol Kurulumu Tamamlandı", "15 Hiyerarşik yetkili rolü ve 4 Özel Görev rolü başarıyla oluşturuldu.", MAVI)
+    e.add_field(name="🛡️ Alt Yetkili (5 Rol)", value="\n".join(olusturulan["Alt Yetkili"]) or "Yok", inline=True)
+    e.add_field(name="🛡️ Üst Yetkili (5 Rol)", value="\n".join(olusturulan["Üst Yetkili"]) or "Yok", inline=True)
+    e.add_field(name="👑 Yönetim (5 Rol)", value="\n".join(olusturulan["Yönetim"]) or "Yok", inline=True)
+    e.add_field(name="🎯 Özel Görev Rolleri", value="\n".join(olusturulan["Görev Rolleri"]) or "Yok", inline=False)
+
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mod_log", e)
 
@@ -1318,7 +1407,7 @@ async def ping(ctx):
 
 async def gelismis_yardim(ctx):
     e = embed("🔹 LogBot Komut Rehberi 🔹", "Tüm moderasyon, koruma ve sistem komutları aşağıda listelenmiştir.", MAVI)
-    e.add_field(name="🛡️ Moderasyon", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `tumrollerisil`", inline=False)
+    e.add_field(name="🛡️ Moderasyon & Yönetim", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `yetkilirolekle`", inline=False)
     e.add_field(name="🔒 Koruma Sistemleri", value="`kufur-kur`, `kufur-kapat`, `link-koruma-aktif`, `link-koruma-kapat`, `spam-koruma-kur`, `spam-koruma-kapat`, `spam-koruma-durum`", inline=False)
     e.add_field(name="🎉 Çekiliş & Bilet & Sistem", value="`gstart`, `gend`, `greroll`, `glist`, `gdelete`, `ginfo`, `ticketkur`, `ticketpanel`, `ticketkapat`, `afk`, `logkur`, `log-kur`, `log-kaldir`, `log-durum`", inline=False)
     e.add_field(name="📢 Duyuru", value=f"`{PREFIX}duyuru #kanal mesaj [gif-linki]`", inline=False)
