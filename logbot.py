@@ -23,16 +23,16 @@ if not TOKEN or TOKEN == "BURAYA_BOT_TOKEN_YAZ":
     raise ValueError("DISCORD_TOKEN veya BOT_TOKEN env ayarla ya da logbot.py icindeki token alanini doldur.")
 
 
-# Tüm Embed Renkleri Pembe (Hot Pink)
-PEMBE = 0xFF69B4
+# Tüm Embed Renkleri Mavi (Dodger Blue / Royal Blue)
+MAVI = 0x3498DB
 
 RENK = {
-    "basari": PEMBE,
-    "hata": PEMBE,
-    "bilgi": PEMBE,
-    "uyari": PEMBE,
-    "mod": PEMBE,
-    "mute": PEMBE,
+    "basari": MAVI,
+    "hata": MAVI,
+    "bilgi": MAVI,
+    "uyari": MAVI,
+    "mod": MAVI,
+    "mute": MAVI,
 }
 
 LOG_TURLERI = {
@@ -129,18 +129,18 @@ def set_guild_section(guild_id: int, key: str, value) -> None:
     update_settings(edit)
 
 
-def embed(title: str, description: str = "", color: int = PEMBE) -> discord.Embed:
-    e = discord.Embed(title=title, description=description, color=PEMBE, timestamp=utc_now())
+def embed(title: str, description: str = "", color: int = MAVI) -> discord.Embed:
+    e = discord.Embed(title=title, description=description, color=MAVI, timestamp=utc_now())
     e.set_footer(text=timestamp())
     return e
 
 
 def error_embed(title: str, description: str) -> discord.Embed:
-    return embed(title, description, PEMBE)
+    return embed(title, description, MAVI)
 
 
 def usage_embed(text: str) -> discord.Embed:
-    return embed("Kullanım Rehberi", text, PEMBE)
+    return embed("Kullanım Rehberi", text, MAVI)
 
 
 def short(text: str, limit: int = 1024) -> str:
@@ -302,7 +302,7 @@ async def logkur(ctx):
         if kanal_id:
             kanal_kaydet(ctx.guild.id, key, kanal_id)
             sayi += 1
-    await ctx.send(embed=embed("🌸 Otomatik Log Kurulumu", f"**{sayi}** varsayılan log kanalı başarıyla kaydedildi.", PEMBE))
+    await ctx.send(embed=embed("🔹 Otomatik Log Kurulumu", f"**{sayi}** varsayılan log kanalı başarıyla kaydedildi.", MAVI))
 
 
 @bot.command(name="log-kur", aliases=["logayarla"])
@@ -317,7 +317,7 @@ async def log_kur(ctx, tur: str = None, kanal: discord.TextChannel = None):
         await ctx.send(embed=error_embed("Geçersiz Log Türü", f"`{tur}` desteklenmiyor. `{PREFIX}log-durum` ile türleri görebilirsiniz."))
         return
     kanal_kaydet(ctx.guild.id, tur, kanal.id)
-    await ctx.send(embed=embed("🌸 Log Kanalı Ayarlandı", f"**{LOG_TURLERI[tur]}** logları {kanal.mention} kanalına yönlendirildi.", PEMBE))
+    await ctx.send(embed=embed("🔹 Log Kanalı Ayarlandı", f"**{LOG_TURLERI[tur]}** logları {kanal.mention} kanalına yönlendirildi.", MAVI))
 
 
 @bot.command(name="log-kaldir", aliases=["logkaldir"])
@@ -331,14 +331,14 @@ async def log_kaldir(ctx, tur: str = None):
         await ctx.send(embed=error_embed("Geçersiz Log Türü", f"`{tur}` desteklenmiyor."))
         return
     kanal_sil(ctx.guild.id, tur)
-    await ctx.send(embed=embed("🌸 Log Kapatıldı", f"**{LOG_TURLERI[tur]}** için log gönderimi kapatıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Log Kapatıldı", f"**{LOG_TURLERI[tur]}** için log gönderimi kapatıldı.", MAVI))
 
 
 @bot.command(name="log-durum", aliases=["logdurum"])
 @commands.has_permissions(manage_guild=True)
 async def log_durum(ctx):
     data = guild_data(ctx.guild.id)
-    e = embed("🌸 Log Ayarları Durumu", f"**{ctx.guild.name}** sunucusu aktif log yapılandırması:", PEMBE)
+    e = embed("🔹 Log Ayarları Durumu", f"**{ctx.guild.name}** sunucusu aktif log yapılandırması:", MAVI)
     for key, name in LOG_TURLERI.items():
         kanal_id = data.get(key) or VARSAYILAN_LOG_KANALLARI.get(key)
         kanal = ctx.guild.get_channel(int(kanal_id)) if kanal_id else None
@@ -375,7 +375,7 @@ async def ban(ctx, *args):
         return
 
     target_text = target.mention if isinstance(target, discord.Member) else f"`{target.id}`"
-    e = embed("🌸 Üye Banlandı", f"**Hedef:** {target_text}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", PEMBE)
+    e = embed("🔹 Üye Banlandı", f"**Hedef:** {target_text}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "ban_log", e)
 
@@ -399,7 +399,7 @@ async def unban(ctx, kullanici_id: str = None, *, sebep: str = "Sebep belirtilme
     except discord.Forbidden:
         await ctx.send(embed=error_embed("Unban Başarısız", "Botun ban kaldırma yetkisi yok."))
         return
-    e = embed("🌸 Ban Kaldırıldı", f"**Kullanıcı ID:** `{target_id}`\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", PEMBE)
+    e = embed("🔹 Ban Kaldırıldı", f"**Kullanıcı ID:** `{target_id}`\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "ban_log", e)
 
@@ -431,7 +431,7 @@ async def kick(ctx, *args):
         await ctx.send(embed=error_embed("Kick Başarısız", "Botun yetkisi veya rol sırası yetersiz."))
         return
 
-    e = embed("🌸 Üye Atıldı (Kick)", f"**Hedef:** {target.mention}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", PEMBE)
+    e = embed("🔹 Üye Atıldı (Kick)", f"**Hedef:** {target.mention}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mod_log", e)
 
@@ -479,9 +479,9 @@ async def mute(ctx, *args):
         return
 
     e = embed(
-        "🌸 Üye Susturuldu",
+        "🔹 Üye Susturuldu",
         f"**Hedef:** {target.mention}\n**Süre:** {format_duration(seconds)}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}",
-        PEMBE
+        MAVI
     )
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mute_log", e)
@@ -512,7 +512,7 @@ async def unmute(ctx, *args):
         await ctx.send(embed=error_embed("Unmute Başarısız", short(exc)))
         return
 
-    e = embed("🌸 Mute Kaldırıldı", f"**Hedef:** {target.mention}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", PEMBE)
+    e = embed("🔹 Mute Kaldırıldı", f"**Hedef:** {target.mention}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mute_log", e)
 
@@ -522,12 +522,52 @@ async def unmute(ctx, *args):
 async def sil(ctx, adet: int = 5):
     adet = max(1, min(adet, 100))
     deleted = await ctx.channel.purge(limit=adet + 1)
-    msg = await ctx.send(embed=embed("🌸 Mesajlar Silindi", f"**{max(0, len(deleted) - 1)}** adet mesaj başarıyla temizlendi.", PEMBE))
+    msg = await ctx.send(embed=embed("🔹 Mesajlar Silindi", f"**{max(0, len(deleted) - 1)}** adet mesaj başarıyla temizlendi.", MAVI))
     await asyncio.sleep(4)
     try:
         await msg.delete()
     except discord.HTTPException:
         pass
+
+
+@bot.command(name="tumrollerisil", aliases=["tum-rolleri-sil", "rollerisil", "rolleri-sil", "deleteallroles"])
+@commands.has_permissions(administrator=True)
+async def tumrollerisil(ctx):
+    """
+    Sunucudaki tüm silinebilir rolleri temizler.
+    (@everyone, entegrasyon rolleri ve botun üstündeki roller hariç)
+    """
+    silinebilir_roller = [
+        role for role in ctx.guild.roles
+        if role != ctx.guild.default_role
+        and not role.managed
+        and role < ctx.guild.me.top_role
+    ]
+
+    if not silinebilir_roller:
+        await ctx.send(embed=embed("🔹 Rol Silme İşlemi", "Silinebilecek uygun rol bulunamadı (Bot rollerine veya yetkisi üstün rollere müdahale edilemez).", MAVI))
+        return
+
+    await ctx.send(embed=embed("🔹 Rol Silme Başlatıldı", f"Toplam **{len(silinebilir_roller)}** adet rol siliniyor, lütfen bekleyin...", MAVI))
+
+    basarili = 0
+    hatali = 0
+
+    for role in silinebilir_roller:
+        try:
+            await role.delete(reason=f"{ctx.author} tarafından tüm roller sil komutu çalıştırıldı.")
+            basarili += 1
+            await asyncio.sleep(0.4)
+        except (discord.Forbidden, discord.HTTPException):
+            hatali += 1
+
+    e = embed(
+        "🔹 Tüm Roller Silindi",
+        f"**Başarıyla Silinen Rol:** {basarili}\n**Silinemeyen / Hata:** {hatali}\n**Yetkili:** {ctx.author.mention}",
+        MAVI
+    )
+    await ctx.send(embed=e)
+    await log_gonder(ctx.guild, "mod_log", e)
 
 
 def warnings_get(guild_id: int) -> dict:
@@ -559,7 +599,7 @@ async def warn(ctx, *args):
         return len(kayitlar)
 
     count = update_settings(edit)
-    e = embed("🌸 Üye Uyarıldı", f"**Hedef:** {target.mention}\n**Toplam Uyarı:** `{count}`\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", PEMBE)
+    e = embed("🔹 Üye Uyarıldı", f"**Hedef:** {target.mention}\n**Toplam Uyarı:** `{count}`\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mod_log", e)
 
@@ -573,10 +613,10 @@ async def uyarlar(ctx, *args):
 
     kayitlar = warnings_get(ctx.guild.id).get(str(target.id), [])
     if not kayitlar:
-        await ctx.send(embed=embed("🌸 Uyarı Kaydı Yok", f"{target.mention} için kayıtlı herhangi bir uyarı bulunmuyor.", PEMBE))
+        await ctx.send(embed=embed("🔹 Uyarı Kaydı Yok", f"{target.mention} için kayıtlı herhangi bir uyarı bulunmuyor.", MAVI))
         return
 
-    e = embed("🌸 Uyarı Listesi", f"{target.mention} için toplam **{len(kayitlar)}** uyarı kaydı mevcut.", PEMBE)
+    e = embed("🔹 Uyarı Listesi", f"{target.mention} için toplam **{len(kayitlar)}** uyarı kaydı mevcut.", MAVI)
     for i, item in enumerate(kayitlar[-10:], start=max(1, len(kayitlar) - 9)):
         yetkili = item.get("yetkili", "Bilinmiyor") if isinstance(item, dict) else "Bilinmiyor"
         sebep = item.get("sebep", item) if isinstance(item, dict) else item
@@ -595,7 +635,7 @@ async def uyarsil(ctx, *args):
     def edit(data):
         data.setdefault(str(ctx.guild.id), {}).setdefault("warnings", {}).pop(str(target.id), None)
     update_settings(edit)
-    await ctx.send(embed=embed("🌸 Uyarılar Temizlendi", f"{getattr(target, 'mention', str(target))} için tüm uyarı geçmişi silindi.", PEMBE))
+    await ctx.send(embed=embed("🔹 Uyarılar Temizlendi", f"{getattr(target, 'mention', str(target))} için tüm uyarı geçmişi silindi.", MAVI))
 
 
 @bot.command(name="lock", aliases=["kilit"])
@@ -603,7 +643,7 @@ async def uyarsil(ctx, *args):
 async def lock(ctx, kanal: discord.TextChannel = None):
     kanal = kanal or ctx.channel
     await kanal.set_permissions(ctx.guild.default_role, send_messages=False, reason=f"{ctx.author} kanalı kilitledi")
-    await ctx.send(embed=embed("🌸 Kanal Kilitlendi", f"{kanal.mention} mesaj gönderimine kapatıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Kanal Kilitlendi", f"{kanal.mention} mesaj gönderimine kapatıldı.", MAVI))
 
 
 @bot.command(name="unlock", aliases=["kilitac", "kilitaç"])
@@ -611,7 +651,7 @@ async def lock(ctx, kanal: discord.TextChannel = None):
 async def unlock(ctx, kanal: discord.TextChannel = None):
     kanal = kanal or ctx.channel
     await kanal.set_permissions(ctx.guild.default_role, send_messages=None, reason=f"{ctx.author} kanalı açtı")
-    await ctx.send(embed=embed("🌸 Kanal Açıldı", f"{kanal.mention} tekrar mesaj gönderimine açıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Kanal Açıldı", f"{kanal.mention} tekrar mesaj gönderimine açıldı.", MAVI))
 
 
 @bot.command(name="slowmode", aliases=["sm", "yavaşmod"])
@@ -619,7 +659,7 @@ async def unlock(ctx, kanal: discord.TextChannel = None):
 async def slowmode(ctx, sure: int = 0):
     sure = max(0, min(sure, 21600))
     await ctx.channel.edit(slowmode_delay=sure, reason=f"{ctx.author} yavaş mod ayarladı")
-    await ctx.send(embed=embed("🌸 Yavaş Mod Ayarlandı", f"Bu kanaldaki yavaş mod bekleme süresi **{sure} saniye** olarak ayarlandı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Yavaş Mod Ayarlandı", f"Bu kanaldaki yavaş mod bekleme süresi **{sure} saniye** olarak ayarlandı.", MAVI))
 
 
 @bot.command(name="duyuru", aliases=["announce"])
@@ -633,7 +673,7 @@ async def duyuru(ctx, kanal: discord.TextChannel = None, *, mesaj: str = None):
     if image_match:
         image_url = image_match.group(1)
         mesaj = mesaj.replace(image_url, "").strip()
-    e = embed("📢 Duyuru", mesaj or "Yeni duyuru", PEMBE)
+    e = embed("📢 Duyuru", mesaj or "Yeni duyuru", MAVI)
     if ctx.guild.icon:
         e.set_author(name=ctx.guild.name, icon_url=ctx.guild.icon.url)
     else:
@@ -643,7 +683,7 @@ async def duyuru(ctx, kanal: discord.TextChannel = None, *, mesaj: str = None):
     if ctx.author.display_avatar:
         e.set_footer(text=f"Duyuran: {ctx.author} | {timestamp()}", icon_url=ctx.author.display_avatar.url)
     await kanal.send(embed=e)
-    await ctx.send(embed=embed("🌸 Duyuru Gönderildi", f"Duyuru başarıyla {kanal.mention} kanalına yayınlandı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Duyuru Gönderildi", f"Duyuru başarıyla {kanal.mention} kanalına yayınlandı.", MAVI))
 
 
 @bot.command(name="kufur-kur", aliases=["küfür-kur"])
@@ -651,14 +691,14 @@ async def duyuru(ctx, kanal: discord.TextChannel = None, *, mesaj: str = None):
 async def kufur_kur(ctx, *, kelimeler: str = None):
     liste = [k.strip().lower() for k in kelimeler.split(",")] if kelimeler else sorted(KUFUR_KELIMELERI)
     set_guild_section(ctx.guild.id, "kufur_koruma", {"aktif": True, "kelimeler": liste})
-    await ctx.send(embed=embed("🌸 Küfür Koruması Aktif", f"Toplam **{len(liste)}** filtre kelimesi ile küfür engelleme aktif edildi.", PEMBE))
+    await ctx.send(embed=embed("🔹 Küfür Koruması Aktif", f"Toplam **{len(liste)}** filtre kelimesi ile küfür engelleme aktif edildi.", MAVI))
 
 
 @bot.command(name="kufur-kapat", aliases=["küfür-kapat"])
 @commands.has_permissions(manage_guild=True)
 async def kufur_kapat(ctx):
     set_guild_section(ctx.guild.id, "kufur_koruma", {"aktif": False, "kelimeler": []})
-    await ctx.send(embed=embed("🌸 Küfür Koruması Kapatıldı", "Küfür engelleme sistemi devre dışı bırakıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Küfür Koruması Kapatıldı", "Küfür engelleme sistemi devre dışı bırakıldı.", MAVI))
 
 
 @bot.command(name="link-koruma-aktif", aliases=["antilink"])
@@ -667,7 +707,7 @@ async def link_koruma_aktif(ctx):
     ayar = guild_section(ctx.guild.id, "link_koruma", {"muaf_roller": [], "muaf_kanallar": []})
     ayar["aktif"] = True
     set_guild_section(ctx.guild.id, "link_koruma", ayar)
-    await ctx.send(embed=embed("🌸 Link Koruması Aktif", "İzinli rol/kanallar haricindeki tüm linkler otomatik silinecek.", PEMBE))
+    await ctx.send(embed=embed("🔹 Link Koruması Aktif", "İzinli rol/kanallar haricindeki tüm linkler otomatik silinecek.", MAVI))
 
 
 @bot.command(name="link-koruma-kapat")
@@ -676,7 +716,7 @@ async def link_koruma_kapat(ctx):
     ayar = guild_section(ctx.guild.id, "link_koruma", {})
     ayar["aktif"] = False
     set_guild_section(ctx.guild.id, "link_koruma", ayar)
-    await ctx.send(embed=embed("🌸 Link Koruması Kapatıldı", "Link koruma sistemi kapatıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Link Koruması Kapatıldı", "Link koruma sistemi kapatıldı.", MAVI))
 
 
 @bot.command(name="link-koruma-muaf-rol")
@@ -695,7 +735,7 @@ async def link_muaf_rol(ctx, rol: discord.Role = None):
         durum = "eklendi"
     ayar["muaf_roller"] = list(roller)
     set_guild_section(ctx.guild.id, "link_koruma", ayar)
-    await ctx.send(embed=embed("🌸 Muaf Rol Güncellendi", f"{rol.mention} muaf rol listesine {durum}.", PEMBE))
+    await ctx.send(embed=embed("🔹 Muaf Rol Güncellendi", f"{rol.mention} muaf rol listesine {durum}.", MAVI))
 
 
 @bot.command(name="link-koruma-muaf-kanal")
@@ -714,7 +754,7 @@ async def link_muaf_kanal(ctx, kanal: discord.TextChannel = None):
         durum = "eklendi"
     ayar["muaf_kanallar"] = list(kanallar)
     set_guild_section(ctx.guild.id, "link_koruma", ayar)
-    await ctx.send(embed=embed("🌸 Muaf Kanal Güncellendi", f"{kanal.mention} muaf kanal listesine {durum}.", PEMBE))
+    await ctx.send(embed=embed("🔹 Muaf Kanal Güncellendi", f"{kanal.mention} muaf kanal listesine {durum}.", MAVI))
 
 
 @bot.command(name="spam-koruma-kur")
@@ -722,7 +762,7 @@ async def link_muaf_kanal(ctx, kanal: discord.TextChannel = None):
 async def spam_koruma_kur(ctx, max_mesaj: int = 5, saniye: int = 8, mute_saniye: int = 300):
     ayar = {"aktif": True, "max_mesaj": max(2, max_mesaj), "saniye": max(3, saniye), "mute_saniye": max(10, mute_saniye), "muaf_roller": [], "muaf_kanallar": []}
     set_guild_section(ctx.guild.id, "spam_koruma", ayar)
-    await ctx.send(embed=embed("🌸 Spam Koruması Aktif", f"{ayar['saniye']} saniyede {ayar['max_mesaj']} mesaj sınırını aşanlara **{format_duration(ayar['mute_saniye'])}** timeout verilecek.", PEMBE))
+    await ctx.send(embed=embed("🔹 Spam Koruması Aktif", f"{ayar['saniye']} saniyede {ayar['max_mesaj']} mesaj sınırını aşanlara **{format_duration(ayar['mute_saniye'])}** timeout verilecek.", MAVI))
 
 
 @bot.command(name="spam-koruma-kapat")
@@ -731,7 +771,7 @@ async def spam_koruma_kapat(ctx):
     ayar = guild_section(ctx.guild.id, "spam_koruma", {})
     ayar["aktif"] = False
     set_guild_section(ctx.guild.id, "spam_koruma", ayar)
-    await ctx.send(embed=embed("🌸 Spam Koruması Kapatıldı", "Spam engelleme sistemi kapatıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Spam Koruması Kapatıldı", "Spam engelleme sistemi kapatıldı.", MAVI))
 
 
 @bot.command(name="spam-koruma-durum")
@@ -739,7 +779,7 @@ async def spam_koruma_kapat(ctx):
 async def spam_koruma_durum(ctx):
     ayar = guild_section(ctx.guild.id, "spam_koruma", {})
     durum = "Aktif" if ayar.get("aktif") else "Devre Dışı"
-    await ctx.send(embed=embed("🌸 Spam Koruma Durumu", f"**Durum:** {durum}\n**Limit:** `{ayar.get('max_mesaj', 5)}` mesaj / `{ayar.get('saniye', 8)}` saniye", PEMBE))
+    await ctx.send(embed=embed("🔹 Spam Koruma Durumu", f"**Durum:** {durum}\n**Limit:** `{ayar.get('max_mesaj', 5)}` mesaj / `{ayar.get('saniye', 8)}` saniye", MAVI))
 
 
 @bot.command(name="jailkur")
@@ -764,7 +804,7 @@ async def jailkur(ctx, kanal: discord.TextChannel = None, yetki_rol: discord.Rol
                 await ch.set_permissions(jail_rol, view_channel=False, send_messages=False, read_message_history=False)
         except Exception:
             pass
-    await ctx.send(embed=embed("🌸 Jail Sistemi Kuruldu", f"**Jail Kanalı:** {kanal.mention}\n**Jail Rolü:** {jail_rol.mention}\n**Yetkili Rolü:** {yetki_rol.mention}", PEMBE))
+    await ctx.send(embed=embed("🔹 Jail Sistemi Kuruldu", f"**Jail Kanalı:** {kanal.mention}\n**Jail Rolü:** {jail_rol.mention}\n**Yetkili Rolü:** {yetki_rol.mention}", MAVI))
 
 
 def jail_yetkili(member: discord.Member) -> bool:
@@ -812,7 +852,7 @@ async def jail(ctx, *args):
 
     ayar.setdefault("kayitlar", {})[str(target.id)] = {"roller": eski_roller, "sebep": sebep, "yetkili": ctx.author.id, "zaman": utc_now().isoformat()}
     set_guild_section(ctx.guild.id, "jail_sistemi", ayar)
-    e = embed("🌸 Üye Jaile Atıldı", f"**Hedef:** {target.mention}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", PEMBE)
+    e = embed("🔹 Üye Jaile Atıldı", f"**Hedef:** {target.mention}\n**Yetkili:** {ctx.author.mention}\n**Sebep:** {sebep}", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mod_log", e)
 
@@ -851,7 +891,7 @@ async def unjail(ctx, *args):
 
     ayar["kayitlar"].pop(str(target.id), None)
     set_guild_section(ctx.guild.id, "jail_sistemi", ayar)
-    e = embed("🌸 Jail Kaldırıldı", f"{target.mention} için eski roller başarıyla iade edildi.", PEMBE)
+    e = embed("🔹 Jail Kaldırıldı", f"{target.mention} için eski roller başarıyla iade edildi.", MAVI)
     await ctx.send(embed=e)
     await log_gonder(ctx.guild, "mod_log", e)
 
@@ -860,7 +900,7 @@ async def unjail(ctx, *args):
 @commands.has_permissions(administrator=True)
 async def jailkapat(ctx):
     set_guild_section(ctx.guild.id, "jail_sistemi", {"aktif": False, "kayitlar": {}})
-    await ctx.send(embed=embed("🌸 Jail Sistemi Kapatıldı", "Jail ayarları temizlendi ve devre dışı bırakıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Jail Sistemi Kapatıldı", "Jail ayarları temizlendi ve devre dışı bırakıldı.", MAVI))
 
 
 def afk_data(guild_id: int) -> dict:
@@ -879,7 +919,7 @@ async def afk(ctx, *, sebep: str = "AFK"):
             await ctx.author.edit(nick=f"[AFK] {ctx.author.display_name}"[:32], reason="AFK modu")
         except discord.Forbidden:
             pass
-    await ctx.send(embed=embed("🌸 AFK Modu Açıldı", f"{ctx.author.mention} artık AFK modunda.\n**Sebep:** {sebep}", PEMBE))
+    await ctx.send(embed=embed("🔹 AFK Modu Açıldı", f"{ctx.author.mention} artık AFK modunda.\n**Sebep:** {sebep}", MAVI))
 
 
 async def afk_cikar(message: discord.Message, kayit: dict):
@@ -891,7 +931,7 @@ async def afk_cikar(message: discord.Message, kayit: dict):
     def edit(data):
         data.setdefault(str(message.guild.id), {}).setdefault("afk_users", {}).pop(str(message.author.id), None)
     update_settings(edit)
-    await message.channel.send(embed=embed("🌸 AFK Modu Kapandı", f"{message.author.mention}, tekrar hoş geldiniz! AFK modundan çıktınız.", PEMBE))
+    await message.channel.send(embed=embed("🔹 AFK Modu Kapandı", f"{message.author.mention}, tekrar hoş geldiniz! AFK modundan çıktınız.", MAVI))
 
 
 class TicketView(discord.ui.View):
@@ -919,10 +959,10 @@ class TicketView(discord.ui.View):
         if destek_rol:
             overwrites[destek_rol] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
         kanal = await kategori.create_text_channel(name=f"ticket-{interaction.user.name}"[:90], topic=f"ticket-owner:{interaction.user.id}", overwrites=overwrites)
-        await kanal.send(embed=embed("🌸 Destek Talebi Oluşturuldu", f"{interaction.user.mention}, destek ekibimiz en kısa sürede ilgilenecektir.", PEMBE), view=TicketCloseView())
-        await interaction.response.send_message(embed=embed("🌸 Ticket Açıldı", f"Destek kanalınız oluşturuldu: {kanal.mention}", PEMBE), ephemeral=True)
+        await kanal.send(embed=embed("🔹 Destek Talebi Oluşturuldu", f"{interaction.user.mention}, destek ekibimiz en kısa sürede ilgilenecektir.", MAVI), view=TicketCloseView())
+        await interaction.response.send_message(embed=embed("🔹 Ticket Açıldı", f"Destek kanalınız oluşturuldu: {kanal.mention}", MAVI), ephemeral=True)
         if isinstance(log_kanal, discord.TextChannel):
-            await log_kanal.send(embed=embed("🌸 Ticket Oluşturuldu", f"**Üye:** {interaction.user.mention}\n**Kanal:** {kanal.mention}", PEMBE))
+            await log_kanal.send(embed=embed("🔹 Ticket Oluşturuldu", f"**Üye:** {interaction.user.mention}\n**Kanal:** {kanal.mention}", MAVI))
 
 
 class TicketCloseView(discord.ui.View):
@@ -934,7 +974,7 @@ class TicketCloseView(discord.ui.View):
         if not isinstance(interaction.channel, discord.TextChannel) or not interaction.channel.name.startswith("ticket-"):
             await interaction.response.send_message(embed=error_embed("Geçersiz Kanal", "Bu buton yalnızca ticket kanallarında çalışır."), ephemeral=True)
             return
-        await interaction.response.send_message(embed=embed("🌸 Ticket Kapatılıyor", "Bu kanal 5 saniye içinde silinecektir.", PEMBE))
+        await interaction.response.send_message(embed=embed("🔹 Ticket Kapatılıyor", "Bu kanal 5 saniye içinde silinecektir.", MAVI))
         await asyncio.sleep(5)
         await interaction.channel.delete(reason=f"{interaction.user} ticket kapattı")
 
@@ -946,13 +986,13 @@ async def ticketkur(ctx, kategori: discord.CategoryChannel = None, log: discord.
         await ctx.send(embed=usage_embed(f"`{PREFIX}ticketkur <kategori> [log-kanalı] [destek-rolü]`"))
         return
     set_guild_section(ctx.guild.id, "ticket_sistemi", {"kategori_id": kategori.id, "log_kanal_id": log.id if log else None, "destek_rol_id": destek_rol.id if destek_rol else None})
-    await ctx.send(embed=embed("🌸 Ticket Sistemi Kuruldu", f"**Kategori:** {kategori.name}\n**Log:** {log.mention if log else 'Yok'}\n**Destek Rolü:** {destek_rol.mention if destek_rol else 'Yok'}", PEMBE))
+    await ctx.send(embed=embed("🔹 Ticket Sistemi Kuruldu", f"**Kategori:** {kategori.name}\n**Log:** {log.mention if log else 'Yok'}\n**Destek Rolü:** {destek_rol.mention if destek_rol else 'Yok'}", MAVI))
 
 
 @bot.command(name="ticketpanel", aliases=["ticket-panel"])
 @commands.has_permissions(manage_guild=True)
 async def ticketpanel(ctx):
-    await ctx.send(embed=embed("🌸 Destek Talebi Paneli", "Destek ekibimizle iletişime geçmek için aşağıdaki butona tıklayarak ticket oluşturabilirsiniz.", PEMBE), view=TicketView())
+    await ctx.send(embed=embed("🔹 Destek Talebi Paneli", "Destek ekibimizle iletişime geçmek için aşağıdaki butona tıklayarak ticket oluşturabilirsiniz.", MAVI), view=TicketView())
 
 
 @bot.command(name="ticketkapat", aliases=["ticket-kapat"])
@@ -960,7 +1000,7 @@ async def ticketkapat(ctx):
     if not ctx.channel.name.startswith("ticket-"):
         await ctx.send(embed=error_embed("Geçersiz Kanal", "Bu komut yalnızca ticket kanallarında kullanılabilir."))
         return
-    await ctx.send(embed=embed("🌸 Ticket Kapatılıyor", "Kanal 5 saniye içinde silinecektir.", PEMBE))
+    await ctx.send(embed=embed("🔹 Ticket Kapatılıyor", "Kanal 5 saniye içinde silinecektir.", MAVI))
     await asyncio.sleep(5)
     await ctx.channel.delete(reason=f"{ctx.author} ticket kapattı")
 
@@ -972,7 +1012,7 @@ async def ticketekle(ctx, *args):
         await ctx.send(embed=usage_embed(f"`{PREFIX}ticketekle @üye`"))
         return
     await ctx.channel.set_permissions(target, view_channel=True, send_messages=True, read_message_history=True)
-    await ctx.send(embed=embed("🌸 Üye Eklendi", f"{target.mention} tickete eklendi.", PEMBE))
+    await ctx.send(embed=embed("🔹 Üye Eklendi", f"{target.mention} tickete eklendi.", MAVI))
 
 
 @bot.command(name="ticketcikar", aliases=["ticket-çıkar"])
@@ -982,7 +1022,7 @@ async def ticketcikar(ctx, *args):
         await ctx.send(embed=usage_embed(f"`{PREFIX}ticketcikar @üye`"))
         return
     await ctx.channel.set_permissions(target, overwrite=None)
-    await ctx.send(embed=embed("🌸 Üye Çıkarıldı", f"{target.mention} ticketten çıkarıldı.", PEMBE))
+    await ctx.send(embed=embed("🔹 Üye Çıkarıldı", f"{target.mention} ticketten çıkarıldı.", MAVI))
 
 
 GIVEAWAY_EMOJI = "🎉"
@@ -1024,7 +1064,7 @@ async def giveaway_finish(guild_id: int, channel_id: int, message_id: int, force
     winners_count = max(1, int(data.get("winners", 1)))
     winners = random.sample(users, min(winners_count, len(users))) if users else []
     winners_text = " ".join(u.mention for u in winners) if winners else "Kazanan Yok"
-    end_embed = embed("🎉 ÇEKİLİŞ BİTTİ 🎉", f"**Ödül:** {data.get('prize')}\n**Kazanan:** {winners_text}\n**Toplam Katılımcı:** {len(users)}", PEMBE)
+    end_embed = embed("🎉 ÇEKİLİŞ BİTTİ 🎉", f"**Ödül:** {data.get('prize')}\n**Kazanan:** {winners_text}\n**Toplam Katılımcı:** {len(users)}", MAVI)
     if data.get("gif_url"):
         end_embed.set_image(url=data["gif_url"])
     try:
@@ -1033,9 +1073,9 @@ async def giveaway_finish(guild_id: int, channel_id: int, message_id: int, force
         pass
     giveaway_set(guild_id, message_id, None)
     if winners:
-        await channel.send(embed=embed("🌸 Tebrikler!", f"{winners_text}\n**{data.get('prize')}** kazandınız!", PEMBE))
+        await channel.send(embed=embed("🔹 Tebrikler!", f"{winners_text}\n**{data.get('prize')}** kazandınız!", MAVI))
     elif forced:
-        await channel.send(embed=embed("🌸 Çekiliş Sonlandırıldı", "Katılımcı olmadığı için kazanan seçilemedi.", PEMBE))
+        await channel.send(embed=embed("🔹 Çekiliş Sonlandırıldı", "Katılımcı olmadığı için kazanan seçilemedi.", MAVI))
 
 
 async def giveaway_wait(guild_id: int, channel_id: int, message_id: int, ends_at: str):
@@ -1074,26 +1114,26 @@ async def gstart(ctx, sure: str = None, kazanan: int = 1, *, odul_veya_gif: str 
 
         try:
             # 1. Süre sor
-            msg1 = await ctx.send(embed=embed("🌸 Çekiliş Kurulumu (1/4)", "Çekiliş süresi nedir? (Örn: `10m`, `1h`, `1d`)\nİptal etmek için `iptal` yazın.", PEMBE))
+            msg1 = await ctx.send(embed=embed("🔹 Çekiliş Kurulumu (1/4)", "Çekiliş süresi nedir? (Örn: `10m`, `1h`, `1d`)\nİptal etmek için `iptal` yazın.", MAVI))
             res1 = await bot.wait_for("message", check=check, timeout=60.0)
             if res1.content.lower() in ["iptal", "cancel"]:
-                await ctx.send(embed=embed("🌸 İşlem İptal Edildi", "Çekiliş kurulumu iptal edildi.", PEMBE))
+                await ctx.send(embed=embed("🔹 İşlem İptal Edildi", "Çekiliş kurulumu iptal edildi.", MAVI))
                 return
             sure = res1.content.strip()
             parse_duration(sure)
 
             # 2. Kazanan sayısı sor
-            msg2 = await ctx.send(embed=embed("🌸 Çekiliş Kurulumu (2/4)", "Kaç kazanan olacak? (Örn: `1`)", PEMBE))
+            msg2 = await ctx.send(embed=embed("🔹 Çekiliş Kurulumu (2/4)", "Kaç kazanan olacak? (Örn: `1`)", MAVI))
             res2 = await bot.wait_for("message", check=check, timeout=60.0)
             kazanan = max(1, int(re.sub(r"\D", "", res2.content) or 1))
 
             # 3. Ödül sor
-            msg3 = await ctx.send(embed=embed("🌸 Çekiliş Kurulumu (3/4)", "Çekiliş ödülü nedir? (Örn: `Discord Nitro`)", PEMBE))
+            msg3 = await ctx.send(embed=embed("🔹 Çekiliş Kurulumu (3/4)", "Çekiliş ödülü nedir? (Örn: `Discord Nitro`)", MAVI))
             res3 = await bot.wait_for("message", check=check, timeout=60.0)
             odul = res3.content.strip()
 
             # 4. GIF / Görsel linki sor
-            msg4 = await ctx.send(embed=embed("🌸 Çekiliş Kurulumu (4/4)", "Çekiliş için GIF veya Görsel linki gönderin:\n*(Görsel eklemek istemiyorsanız **pas** veya **yok** yazın)*", PEMBE))
+            msg4 = await ctx.send(embed=embed("🔹 Çekiliş Kurulumu (4/4)", "Çekiliş için GIF veya Görsel linki gönderin:\n*(Görsel eklemek istemiyorsanız **pas** veya **yok** yazın)*", MAVI))
             res4 = await bot.wait_for("message", check=check, timeout=60.0)
             if res4.content.strip().lower() not in ["pas", "yok", "none", "no"]:
                 found_url = URL_REGEX.search(res4.content.strip())
@@ -1124,7 +1164,7 @@ async def gstart(ctx, sure: str = None, kazanan: int = 1, *, odul_veya_gif: str 
             def check_gif(m):
                 return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id
 
-            await ctx.send(embed=embed("🌸 Çekiliş GIF Linki", "Çekiliş için bir GIF / Görsel linki eklemek ister misiniz?\n*(İstemiyorsanız **pas** yazın, 15 saniye sonra otomatik geçilir)*", PEMBE))
+            await ctx.send(embed=embed("🔹 Çekiliş GIF Linki", "Çekiliş için bir GIF / Görsel linki eklemek ister misiniz?\n*(İstemiyorsanız **pas** yazın, 15 saniye sonra otomatik geçilir)*", MAVI))
             try:
                 gif_res = await bot.wait_for("message", check=check_gif, timeout=15.0)
                 if gif_res.content.strip().lower() not in ["pas", "yok", "none", "no"]:
@@ -1147,7 +1187,7 @@ async def gstart(ctx, sure: str = None, kazanan: int = 1, *, odul_veya_gif: str 
     e = embed(
         "🎉 ÇEKİLİŞ BAŞLADI 🎉",
         f"**Ödül:** {odul}\n**Kazanan Sayısı:** {kazanan}\n**Bitiş:** <t:{int(ends_at.timestamp())}:R>\n**Düzenleyen:** {ctx.author.mention}\n\nKatılmak için aşağıdaki {GIVEAWAY_EMOJI} tepkisine basın!",
-        PEMBE
+        MAVI
     )
     if gif_url:
         e.set_image(url=gif_url)
@@ -1196,7 +1236,7 @@ async def greroll(ctx, mesaj_id: int = None, kazanan: int = 1):
         await ctx.send(embed=error_embed("Katılımcı Yok", "Yeni kazanan seçecek katılımcı bulunmuyor."))
         return
     winners = random.sample(users, min(max(1, kazanan), len(users)))
-    await ctx.send(embed=embed("🌸 Çekiliş Yenilendi", f"Yeni Kazanan: {' '.join(u.mention for u in winners)}", PEMBE))
+    await ctx.send(embed=embed("🔹 Çekiliş Yenilendi", f"Yeni Kazanan: {' '.join(u.mention for u in winners)}", MAVI))
 
 
 @bot.command(name="glist", aliases=["katilimcilar", "çekilişkatılımcı"])
@@ -1212,7 +1252,7 @@ async def glist(ctx, mesaj_id: int = None):
     reaction = discord.utils.get(msg.reactions, emoji=GIVEAWAY_EMOJI)
     users = [u async for u in reaction.users() if not u.bot] if reaction else []
     text = "\n".join(f"`{i}.` {u.mention}" for i, u in enumerate(users[:30], 1)) or "Katılımcı yok."
-    await ctx.send(embed=embed("🌸 Çekiliş Katılımcıları", text, PEMBE))
+    await ctx.send(embed=embed("🔹 Çekiliş Katılımcıları", text, MAVI))
 
 
 @bot.command(name="gdelete", aliases=["gcancel", "cekilissil", "çekilişsil"])
@@ -1227,7 +1267,7 @@ async def gdelete(ctx, mesaj_id: int = None):
     except discord.HTTPException:
         pass
     giveaway_set(ctx.guild.id, mesaj_id, None)
-    await ctx.send(embed=embed("🌸 Çekiliş İptal Edildi", "Çekiliş mesajı ve kaydı başarıyla silindi.", PEMBE))
+    await ctx.send(embed=embed("🔹 Çekiliş İptal Edildi", "Çekiliş mesajı ve kaydı başarıyla silindi.", MAVI))
 
 
 @bot.command(name="ginfo", aliases=["cekilisbilgi", "çekilişbilgi"])
@@ -1240,7 +1280,7 @@ async def ginfo(ctx, mesaj_id: int = None):
         await ctx.send(embed=error_embed("Kayıt Bulunamadı", "Bu mesaj ID'si için aktif çekiliş kaydı bulunamadı."))
         return
     end_time = datetime.fromisoformat(data["ends_at"])
-    e = embed("🌸 Çekiliş Bilgisi", f"**Ödül:** {data.get('prize')}\n**Kazanan:** {data.get('winners')}\n**Bitiş:** <t:{int(end_time.timestamp())}:R>", PEMBE)
+    e = embed("🔹 Çekiliş Bilgisi", f"**Ödül:** {data.get('prize')}\n**Kazanan:** {data.get('winners')}\n**Bitiş:** <t:{int(end_time.timestamp())}:R>", MAVI)
     if data.get("gif_url"):
         e.set_image(url=data["gif_url"])
     await ctx.send(embed=e)
@@ -1253,7 +1293,7 @@ async def avatar(ctx, *args):
     if not isinstance(target, discord.Member):
         target = ctx.author
 
-    e = embed("🌸 Profil Resmi / Avatar", f"{target.mention} için avatar görüntüsü:", PEMBE)
+    e = embed("🔹 Profil Resmi / Avatar", f"{target.mention} için avatar görüntüsü:", MAVI)
     e.set_image(url=target.display_avatar.url)
     await ctx.send(embed=e)
 
@@ -1261,7 +1301,7 @@ async def avatar(ctx, *args):
 @bot.command(name="sunucu", aliases=["serverinfo"])
 async def sunucu(ctx):
     g = ctx.guild
-    e = embed("🌸 Sunucu Bilgileri", f"**{g.name}** sunucusu genel istatistikleri:", PEMBE)
+    e = embed("🔹 Sunucu Bilgileri", f"**{g.name}** sunucusu genel istatistikleri:", MAVI)
     e.add_field(name="👥 Üye Sayısı", value=str(g.member_count), inline=True)
     e.add_field(name="💬 Kanal Sayısı", value=str(len(g.channels)), inline=True)
     e.add_field(name="🎭 Rol Sayısı", value=str(len(g.roles)), inline=True)
@@ -1273,12 +1313,12 @@ async def sunucu(ctx):
 
 @bot.command(name="ping")
 async def ping(ctx):
-    await ctx.send(embed=embed("🌸 Pong!", f"Gecikme süresi: `{round(bot.latency * 1000)}ms`", PEMBE))
+    await ctx.send(embed=embed("🔹 Pong!", f"Gecikme süresi: `{round(bot.latency * 1000)}ms`", MAVI))
 
 
 async def gelismis_yardim(ctx):
-    e = embed("🌸 LogBot Komut Rehberi 🌸", "Tüm moderasyon, koruma ve sistem komutları aşağıda listelenmiştir.", PEMBE)
-    e.add_field(name="🛡️ Moderasyon", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`", inline=False)
+    e = embed("🔹 LogBot Komut Rehberi 🔹", "Tüm moderasyon, koruma ve sistem komutları aşağıda listelenmiştir.", MAVI)
+    e.add_field(name="🛡️ Moderasyon", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `tumrollerisil`", inline=False)
     e.add_field(name="🔒 Koruma Sistemleri", value="`kufur-kur`, `kufur-kapat`, `link-koruma-aktif`, `link-koruma-kapat`, `spam-koruma-kur`, `spam-koruma-kapat`, `spam-koruma-durum`", inline=False)
     e.add_field(name="🎉 Çekiliş & Bilet & Sistem", value="`gstart`, `gend`, `greroll`, `glist`, `gdelete`, `ginfo`, `ticketkur`, `ticketpanel`, `ticketkapat`, `afk`, `logkur`, `log-kur`, `log-kaldir`, `log-durum`", inline=False)
     e.add_field(name="📢 Duyuru", value=f"`{PREFIX}duyuru #kanal mesaj [gif-linki]`", inline=False)
@@ -1317,7 +1357,7 @@ async def on_message(message: discord.Message):
                     since_text = f"\n**AFK Olma Zamanı:** <t:{int(datetime.fromisoformat(since).timestamp())}:R>"
                 except Exception:
                     pass
-            await message.channel.send(embed=embed("🌸 Bu Üye Şu An AFK", f"{member.mention} şu anda AFK modunda.\n**Sebep:** {kayit.get('sebep', 'AFK')}{since_text}", PEMBE))
+            await message.channel.send(embed=embed("🔹 Bu Üye Şu An AFK", f"{member.mention} şu anda AFK modunda.\n**Sebep:** {kayit.get('sebep', 'AFK')}{since_text}", MAVI))
 
     await bot.process_commands(message)
 
@@ -1335,7 +1375,7 @@ async def on_message(message: discord.Message):
                 await message.delete()
             except discord.HTTPException:
                 pass
-            e = error_embed("🌸 Küfür Engellendi", f"{message.author.mention}, bu sunucuda küfür kullanımı yasaktır.")
+            e = error_embed("🔹 Küfür Engellendi", f"{message.author.mention}, bu sunucuda küfür kullanımı yasaktır.")
             await message.channel.send(embed=e, delete_after=6)
             await log_gonder(message.guild, "mod_log", e)
             return
@@ -1349,7 +1389,7 @@ async def on_message(message: discord.Message):
                 await message.delete()
             except discord.HTTPException:
                 pass
-            e = error_embed("🌸 Link Engellendi", f"{message.author.mention}, bu kanalda link paylaşılması yasaktır.")
+            e = error_embed("🔹 Link Engellendi", f"{message.author.mention}, bu kanalda link paylaşılması yasaktır.")
             await message.channel.send(embed=e, delete_after=6)
             await log_gonder(message.guild, "mod_log", e)
             return
@@ -1367,7 +1407,7 @@ async def on_message(message: discord.Message):
                 await message.author.timeout(utc_now() + timedelta(seconds=seconds), reason="Spam koruması")
             except discord.HTTPException:
                 pass
-            e = embed("🌸 Spam Cezası", f"{message.author.mention} spam nedeniyle **{format_duration(seconds)}** boyunca susturuldu.", PEMBE)
+            e = embed("🔹 Spam Cezası", f"{message.author.mention} spam nedeniyle **{format_duration(seconds)}** boyunca susturuldu.", MAVI)
             await message.channel.send(embed=e, delete_after=10)
             await log_gonder(message.guild, "mute_log", e)
             spam_cache[key] = []
@@ -1376,32 +1416,32 @@ async def on_message(message: discord.Message):
 @bot.event
 async def on_member_ban(guild: discord.Guild, user: discord.User):
     sorumlu = await audit_user(guild, discord.AuditLogAction.ban, user)
-    e = embed("🌸 Ban Logu", f"**Kullanıcı:** {user} (`{user.id}`)\n**Yetkili:** {sorumlu.mention if sorumlu else 'Bilinmiyor'}", PEMBE)
+    e = embed("🔹 Ban Logu", f"**Kullanıcı:** {user} (`{user.id}`)\n**Yetkili:** {sorumlu.mention if sorumlu else 'Bilinmiyor'}", MAVI)
     await log_gonder(guild, "ban_log", e)
 
 
 @bot.event
 async def on_member_unban(guild: discord.Guild, user: discord.User):
     sorumlu = await audit_user(guild, discord.AuditLogAction.unban, user)
-    e = embed("🌸 Unban Logu", f"**Kullanıcı:** {user} (`{user.id}`)\n**Yetkili:** {sorumlu.mention if sorumlu else 'Bilinmiyor'}", PEMBE)
+    e = embed("🔹 Unban Logu", f"**Kullanıcı:** {user} (`{user.id}`)\n**Yetkili:** {sorumlu.mention if sorumlu else 'Bilinmiyor'}", MAVI)
     await log_gonder(guild, "ban_log", e)
 
 
 @bot.event
 async def on_member_join(member: discord.Member):
-    await log_gonder(member.guild, "giris_cikis", embed("🌸 Üye Katıldı", f"{member.mention} sunucuya katıldı.\n**Kullanıcı ID:** `{member.id}`", PEMBE))
+    await log_gonder(member.guild, "giris_cikis", embed("🔹 Üye Katıldı", f"{member.mention} sunucuya katıldı.\n**Kullanıcı ID:** `{member.id}`", MAVI))
 
 
 @bot.event
 async def on_member_remove(member: discord.Member):
-    await log_gonder(member.guild, "giris_cikis", embed("🌸 Üye Ayrıldı", f"**{member}** sunucudan ayrıldı.\n**Kullanıcı ID:** `{member.id}`", PEMBE))
+    await log_gonder(member.guild, "giris_cikis", embed("🔹 Üye Ayrıldı", f"**{member}** sunucudan ayrıldı.\n**Kullanıcı ID:** `{member.id}`", MAVI))
 
 
 @bot.event
 async def on_message_delete(message: discord.Message):
     if message.author.bot or not message.guild:
         return
-    e = embed("🌸 Mesaj Silindi", f"**Kullanıcı:** {message.author.mention}\n**Kanal:** {message.channel.mention}\n**Silinen Mesaj:** {short(message.content or 'İçerik yok', 900)}", PEMBE)
+    e = embed("🔹 Mesaj Silindi", f"**Kullanıcı:** {message.author.mention}\n**Kanal:** {message.channel.mention}\n**Silinen Mesaj:** {short(message.content or 'İçerik yok', 900)}", MAVI)
     await log_gonder(message.guild, "mesaj_log", e)
 
 
@@ -1409,7 +1449,7 @@ async def on_message_delete(message: discord.Message):
 async def on_message_edit(before: discord.Message, after: discord.Message):
     if before.author.bot or not before.guild or before.content == after.content:
         return
-    e = embed("🌸 Mesaj Düzenlendi", f"**Kullanıcı:** {before.author.mention}\n**Kanal:** {before.channel.mention}\n**Önce:** {short(before.content, 450)}\n**Sonra:** {short(after.content, 450)}", PEMBE)
+    e = embed("🔹 Mesaj Düzenlendi", f"**Kullanıcı:** {before.author.mention}\n**Kanal:** {before.channel.mention}\n**Önce:** {short(before.content, 450)}\n**Sonra:** {short(after.content, 450)}", MAVI)
     await log_gonder(before.guild, "mesaj_log", e)
 
 
@@ -1417,9 +1457,9 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
 async def on_member_update(before: discord.Member, after: discord.Member):
     if before.timed_out_until != after.timed_out_until:
         if after.timed_out_until:
-            e = embed("🌸 Timeout Verildi", f"**Üye:** {after.mention}\n**Bitiş:** <t:{int(after.timed_out_until.timestamp())}:R>", PEMBE)
+            e = embed("🔹 Timeout Verildi", f"**Üye:** {after.mention}\n**Bitiş:** <t:{int(after.timed_out_until.timestamp())}:R>", MAVI)
         else:
-            e = embed("🌸 Timeout Kaldırıldı", f"**Üye:** {after.mention}", PEMBE)
+            e = embed("🔹 Timeout Kaldırıldı", f"**Üye:** {after.mention}", MAVI)
         await log_gonder(after.guild, "mute_log", e)
     old_roles = set(before.roles)
     new_roles = set(after.roles)
@@ -1431,27 +1471,27 @@ async def on_member_update(before: discord.Member, after: discord.Member):
             text += "Eklenen: " + ", ".join(r.mention for r in added) + "\n"
         if removed:
             text += "Alınan: " + ", ".join(r.mention for r in removed)
-        await log_gonder(after.guild, "rol_log", embed("🌸 Rol Değişikliği", f"**Üye:** {after.mention}\n{text}", PEMBE))
+        await log_gonder(after.guild, "rol_log", embed("🔹 Rol Değişikliği", f"**Üye:** {after.mention}\n{text}", MAVI))
 
 
 @bot.event
 async def on_guild_channel_create(channel):
-    await log_gonder(channel.guild, "kanal_log", embed("🌸 Kanal Oluşturuldu", f"**Kanal:** {channel.mention if hasattr(channel, 'mention') else channel.name}", PEMBE))
+    await log_gonder(channel.guild, "kanal_log", embed("🔹 Kanal Oluşturuldu", f"**Kanal:** {channel.mention if hasattr(channel, 'mention') else channel.name}", MAVI))
 
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    await log_gonder(channel.guild, "kanal_log", embed("🌸 Kanal Silindi", f"**Kanal İsmi:** {channel.name}", PEMBE))
+    await log_gonder(channel.guild, "kanal_log", embed("🔹 Kanal Silindi", f"**Kanal İsmi:** {channel.name}", MAVI))
 
 
 @bot.event
 async def on_guild_role_create(role: discord.Role):
-    await log_gonder(role.guild, "rol_log", embed("🌸 Rol Oluşturuldu", f"**Rol:** {role.mention}", PEMBE))
+    await log_gonder(role.guild, "rol_log", embed("🔹 Rol Oluşturuldu", f"**Rol:** {role.mention}", MAVI))
 
 
 @bot.event
 async def on_guild_role_delete(role: discord.Role):
-    await log_gonder(role.guild, "rol_log", embed("🌸 Rol Silindi", f"**Rol İsmi:** {role.name}", PEMBE))
+    await log_gonder(role.guild, "rol_log", embed("🔹 Rol Silindi", f"**Rol İsmi:** {role.name}", MAVI))
 
 
 @bot.event
@@ -1464,7 +1504,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
         text = f"{member.mention} {before.channel.mention} ses kanalından ayrıldı."
     else:
         text = f"{member.mention} {before.channel.mention} ➔ {after.channel.mention} kanalına geçiş yaptı."
-    await log_gonder(member.guild, "ses_log", embed("🌸 Ses Logu", text, PEMBE))
+    await log_gonder(member.guild, "ses_log", embed("🔹 Ses Logu", text, MAVI))
 
 
 @bot.event
