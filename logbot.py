@@ -273,7 +273,7 @@ async def hedef_uye_bul(ctx: commands.Context, *args):
             try:
                 fetched = await ctx.guild.fetch_member(int(clean_id))
                 return fetched, args_list[1:]
-            except (discord.HTTPException, NotFound):
+            except (discord.HTTPException, discord.NotFound):
                 return discord.Object(id=int(clean_id)), args_list[1:]
 
         found = discord.utils.find(
@@ -434,7 +434,70 @@ class LogKurulumView(discord.ui.View):
                 sayi += 1
         await interaction.response.send_message(embed=embed("🔹 Otomatik Log Kurulumu", f"**{sayi}** varsayılan log kanalı kaydedildi.", MAVI), ephemeral=True)
 
-    @discord.ui.button(label="📊 Mevcut Durumu Göster", style=discord.ButtonStyle.success, custom_id="log_durum_goster")
+    @discord.ui.button(label="🤖 Otomatik Log Kanalları Oluştur", style=discord.ButtonStyle.success, custom_id="log_oto_olustur")
+    async def oto_olustur(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Kanal/kategori oluşturmak zaman alabileceğinden (3sn interaction limiti) önce defer ediyoruz.
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        guild = interaction.guild
+
+        if not guild.me.guild_permissions.manage_channels:
+            await interaction.followup.send(
+                embed=error_embed("Yetki Eksik", "Botun kanal/kategori oluşturabilmesi için **Kanalları Yönet** iznine ihtiyacı var."),
+                ephemeral=True
+            )
+            return
+
+        try:
+            # En alttaki kategori olacak şekilde pozisyon veriyoruz.
+            kategori = await guild.create_category(
+                name="📁 log-kanallari",
+                position=len(guild.categories),
+                overwrites={
+                    guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
+                },
+                reason=f"{interaction.user} tarafından otomatik log kurulumu"
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                embed=error_embed("Kategori Oluşturulamadı", "Botun kategori oluşturma izni yok."),
+                ephemeral=True
+            )
+            return
+        except discord.HTTPException as exc:
+            await interaction.followup.send(
+                embed=error_embed("Kategori Oluşturulamadı", short(exc)),
+                ephemeral=True
+            )
+            return
+
+        olusturulan = 0
+        hata = 0
+        for tur in LOG_TURLERI:
+            kanal_adi = tur.replace("_", "-")
+            try:
+                yeni_kanal = await guild.create_text_channel(
+                    name=kanal_adi,
+                    category=kategori,
+                    reason=f"{interaction.user} tarafından otomatik log kurulumu"
+                )
+                kanal_kaydet(guild.id, tur, yeni_kanal.id)
+                olusturulan += 1
+            except (discord.Forbidden, discord.HTTPException):
+                hata += 1
+
+        e = embed(
+            "🔹 Otomatik Log Kanalları Oluşturuldu!",
+            f"**Kategori:** {kategori.mention if hasattr(kategori, 'mention') else kategori.name}\n"
+            f"✅ **Oluşturulan Log Kanalı:** `{olusturulan}`\n"
+            f"⚠️ **Başarısız:** `{hata}`\n\n"
+            "Tüm log türleri bu yeni kanallara yönlendirilecek şekilde aktifleştirildi.",
+            MAVI
+        )
+        await interaction.followup.send(embed=e, ephemeral=True)
+
+    @discord.ui.button(label="📊 Mevcut Durumu Göster", style=discord.ButtonStyle.secondary, custom_id="log_durum_goster")
     async def durum_goster(self, interaction: discord.Interaction, button: discord.ui.Button):
         data = guild_data(interaction.guild_id)
         e = embed("🔹 Log Ayarları Durumu", f"**{interaction.guild.name}** aktif log yapılandırması:", MAVI)
@@ -452,7 +515,8 @@ async def log_kur(ctx):
     e = embed(
         "🔹 Log Sistemleri Kurulum Paneli",
         "Aşağıdaki **⚙️ Log Kanallarını Ayarla (Modal)** butonuna basarak tüm log kanallarınızı pop-up form penceresinde tek tek veya topluca ayarlayabilirsiniz!\n\n"
-        "İsterseniz **⚡ Varsayılan Otomatik Yükle** butonuna basarak sunucunun önceden tanınan log kanallarını anında aktifleştirebilirsiniz.",
+        "İsterseniz **⚡ Varsayılan Otomatik Yükle** butonuna basarak sunucunun önceden tanınan log kanallarını anında aktifleştirebilirsiniz.\n\n"
+        "Ya da **🤖 Otomatik Log Kanalları Oluştur** butonuna basarak en alta yeni bir kategori ve içine tüm log kanallarını otomatik oluşturup aktifleştirebilirsiniz!",
         MAVI
     )
     await ctx.send(embed=e, view=LogKurulumView(ctx.author.id))
@@ -790,9 +854,18 @@ class JailKurulumModal(discord.ui.Modal, title="Jail Sistemi Yapılandırma"):
             await interaction.response.send_message(embed=error_embed("Bulunamadı", "Belirtilen kanal veya rol sunucuda bulunamadı."), ephemeral=True)
             return
 
+        # Kanal izinlerini ayarlamak (aşağıda tüm kanallar için tek tek) zaman alabilir ve
+        # 3 saniyelik interaction limitini aşıp "Etkileşim başarısız oldu" hatasına yol açabilir.
+        # Bu yüzden önce defer ediyoruz, işlemleri sonra yapıp followup ile cevap veriyoruz.
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         jail_rol = discord.utils.get(interaction.guild.roles, name="JAIL")
         if jail_rol is None:
-            jail_rol = await interaction.guild.create_role(name="JAIL", reason="Jail sistemi kurulumu")
+            try:
+                jail_rol = await interaction.guild.create_role(name="JAIL", reason="Jail sistemi kurulumu")
+            except discord.Forbidden:
+                await interaction.followup.send(embed=error_embed("Rol Oluşturulamadı", "Botun rol oluşturma yetkisi yok."), ephemeral=True)
+                return
 
         ayar = guild_section(interaction.guild_id, "jail_sistemi", {"kayitlar": {}})
         ayar.update({
@@ -805,6 +878,7 @@ class JailKurulumModal(discord.ui.Modal, title="Jail Sistemi Yapılandırma"):
         set_guild_section(interaction.guild_id, "jail_sistemi", ayar)
 
         # Kanalların izinlerini ayarla
+        hata_sayisi = 0
         for ch in interaction.guild.channels:
             try:
                 if ch.id == kanal.id:
@@ -813,11 +887,15 @@ class JailKurulumModal(discord.ui.Modal, title="Jail Sistemi Yapılandırma"):
                     await ch.set_permissions(jail_rol, view_channel=False, connect=False, speak=False)
                 else:
                     await ch.set_permissions(jail_rol, view_channel=False, send_messages=False, read_message_history=False)
-            except Exception:
-                pass
+            except (discord.Forbidden, discord.HTTPException):
+                hata_sayisi += 1
 
-        await interaction.response.send_message(
-            embed=embed("🔹 Jail Sistemi Aktif Edildi!", f"**Jail Kanalı:** {kanal.mention}\n**Jail Rolü:** {jail_rol.mention}\n**Yetkili Rolü:** {yetki_rol.mention}", MAVI),
+        aciklama = f"**Jail Kanalı:** {kanal.mention}\n**Jail Rolü:** {jail_rol.mention}\n**Yetkili Rolü:** {yetki_rol.mention}"
+        if hata_sayisi:
+            aciklama += f"\n\n⚠️ `{hata_sayisi}` kanalda izin ayarlanamadı (bot yetkisi/rol sırası kontrol edin)."
+
+        await interaction.followup.send(
+            embed=embed("🔹 Jail Sistemi Aktif Edildi!", aciklama, MAVI),
             ephemeral=True
         )
 
