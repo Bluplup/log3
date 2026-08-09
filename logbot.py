@@ -281,6 +281,26 @@ async def hedef_uye_bul(ctx: commands.Context, *args):
     return None, args_list
 
 
+def format_welcome_text(text: str, member: discord.Member) -> str:
+    """Hoş geldin mesajlarındaki değişkenleri değiştirir."""
+    if not text:
+        return ""
+    created_at = member.created_at.strftime("%d.%m.%Y")
+    replacements = {
+        "{uye}": member.mention,
+        "{uye_etiket}": member.mention,
+        "{uye_adi}": member.name,
+        "{uye_id}": str(member.id),
+        "{sunucu}": member.guild.name,
+        "{sunucu_adi}": member.guild.name,
+        "{uye_sayisi}": str(member.guild.member_count),
+        "{hesap_tarihi}": created_at,
+    }
+    for key, val in replacements.items():
+        text = text.replace(key, val)
+    return text
+
+
 intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
@@ -530,133 +550,273 @@ async def sil(ctx, adet: int = 5):
         pass
 
 
-@bot.command(name="yetkilirolekle", aliases=["yetkili-rol-ekle", "yetkilirololustur", "yetkili-rolleri-kur"])
-@commands.has_permissions(administrator=True)
-async def yetkilirolekle(ctx):
+@bot.command(name="herkeserol", aliases=["herkese-rol", "herkeserolekle", "herkese-rol-ver"])
+@commands.has_permissions(manage_roles=True)
+async def herkeserol(ctx, rol: discord.Role = None):
     """
-    Sunucuya 15 adet hiyerarşik yetkili rolü ve özel görev rollerini oluşturur:
-    - 5 Adet Alt Yetkili Rolü (Temel Erişim)
-    - 5 Adet Üst Yetkili Rolü (Gelişmiş Erişim & Denetim)
-    - 5 Adet Yönetim Rolü (Yönetici İzni)
-    - 4 Adet Görev Rolü: Chat Yetkilisi, Ses Yetkilisi, Partner Yetkilisi, Etkinlik Yetkilisi
+    Sunucudaki tüm üyelere (botlar hariç) belirtilen rolü ekler.
+    Kullanım: .herkeserol @rol
     """
-    await ctx.send(embed=embed("🔹 Yetkili Rol Sistemi Kuruluyor", "15 adet hiyerarşik yetkili rolü ve özel görev rolleriniz oluşturulup izinleri ayarlanıyor...", MAVI))
+    if rol is None:
+        await ctx.send(embed=usage_embed(f"`{PREFIX}herkeserol @rol` veya `{PREFIX}herkeserol <rol_id>`"))
+        return
 
-    # Hiyerarşi İzinleri
-    alt_yetki_perm = discord.Permissions(
-        read_message_history=True,
-        send_messages=True,
-        view_channel=True,
-        change_nickname=True
-    )
+    if rol >= ctx.guild.me.top_role:
+        await ctx.send(embed=error_embed("Rol Sırası Hatası", "Bu rol botun en yüksek rolünden eşit veya üstte olduğu için verilemez."))
+        return
 
-    ust_yetki_perm = discord.Permissions(
-        view_audit_log=True,
-        read_message_history=True,
-        send_messages=True,
-        view_channel=True,
-        change_nickname=True,
-        manage_nicknames=True
-    )
+    status_msg = await ctx.send(embed=embed("🔹 Herkese Rol Veriliyor", f"{rol.mention} rolü sunucudaki tüm üyelere veriliyor, lütfen bekleyin...", MAVI))
 
-    yonetim_perm = discord.Permissions(administrator=True)
+    eklenen = 0
+    zaten_var = 0
+    hata = 0
 
-    # Görev Rolü İzinleri
-    chat_yetkili_perm = discord.Permissions(
-        manage_messages=True,
-        moderate_members=True,
-        mute_members=True,
-        read_message_history=True,
-        send_messages=True,
-        view_channel=True
-    )
-
-    ses_yetkili_perm = discord.Permissions(
-        priority_speaker=True,
-        move_members=True,
-        deafen_members=True,
-        mute_members=True,
-        read_message_history=True,
-        send_messages=True,
-        view_channel=True
-    )
-
-    varsayilan_perm = discord.Permissions.none()
-
-    rol_gruplari = [
-        ("Alt Yetkili", [
-            ("・ Alt Yetkili I", discord.Color.from_rgb(116, 185, 255)),
-            ("・ Alt Yetkili II", discord.Color.from_rgb(116, 185, 255)),
-            ("・ Alt Yetkili III", discord.Color.from_rgb(116, 185, 255)),
-            ("・ Alt Yetkili IV", discord.Color.from_rgb(116, 185, 255)),
-            ("・ Alt Yetkili V", discord.Color.from_rgb(116, 185, 255)),
-        ], alt_yetki_perm),
-        ("Üst Yetkili", [
-            ("・ Üst Yetkili I", discord.Color.from_rgb(9, 132, 227)),
-            ("・ Üst Yetkili II", discord.Color.from_rgb(9, 132, 227)),
-            ("・ Üst Yetkili III", discord.Color.from_rgb(9, 132, 227)),
-            ("・ Üst Yetkili IV", discord.Color.from_rgb(9, 132, 227)),
-            ("・ Üst Yetkili V", discord.Color.from_rgb(9, 132, 227)),
-        ], ust_yetki_perm),
-        ("Yönetim", [
-            ("・ Yönetim I", discord.Color.from_rgb(30, 58, 138)),
-            ("・ Yönetim II", discord.Color.from_rgb(30, 58, 138)),
-            ("・ Yönetim III", discord.Color.from_rgb(30, 58, 138)),
-            ("・ Yönetim IV", discord.Color.from_rgb(30, 58, 138)),
-            ("・ Yönetim V", discord.Color.from_rgb(30, 58, 138)),
-        ], yonetim_perm),
-    ]
-
-    gorev_rolleri = [
-        ("・ Chat Yetkilisi", discord.Color.from_rgb(0, 206, 201), chat_yetkili_perm),
-        ("・ Ses Yetkilisi", discord.Color.from_rgb(108, 92, 231), ses_yetkili_perm),
-        ("・ Partner Yetkilisi", discord.Color.from_rgb(253, 203, 110), varsayilan_perm),
-        ("・ Etkinlik Yetkilisi", discord.Color.from_rgb(232, 67, 147), varsayilan_perm),
-    ]
-
-    olusturulan = {"Alt Yetkili": [], "Üst Yetkili": [], "Yönetim": [], "Görev Rolleri": []}
-
-    # 1. Hiyerarşi rollerini oluştur
-    for grup_adi, roller, perms in rol_gruplari:
-        for r_name, r_color in roller:
-            try:
-                new_role = await ctx.guild.create_role(
-                    name=r_name,
-                    permissions=perms,
-                    color=r_color,
-                    hoist=True,
-                    mentionable=True,
-                    reason=f"{ctx.author} tarafından yetkili rol kurulumu yapıldı."
-                )
-                olusturulan[grup_adi].append(new_role.mention)
-                await asyncio.sleep(0.3)
-            except discord.HTTPException as exc:
-                print(f"[HATA] Rol oluşturulamadı: {r_name} - {exc}")
-
-    # 2. Özel Görev rollerini oluştur
-    for r_name, r_color, perms in gorev_rolleri:
+    for member in ctx.guild.members:
+        if member.bot:
+            continue
+        if rol in member.roles:
+            zaten_var += 1
+            continue
         try:
-            new_role = await ctx.guild.create_role(
-                name=r_name,
-                permissions=perms,
-                color=r_color,
-                hoist=True,
-                mentionable=True,
-                reason=f"{ctx.author} tarafından özel görev rolü oluşturuldu."
-            )
-            olusturulan["Görev Rolleri"].append(new_role.mention)
+            await member.add_roles(rol, reason=f"{ctx.author} tarafından toplu rol verme işlemi yapıldı.")
+            eklenen += 1
             await asyncio.sleep(0.3)
-        except discord.HTTPException as exc:
-            print(f"[HATA] Görev rolü oluşturulamadı: {r_name} - {exc}")
+        except (discord.Forbidden, discord.HTTPException):
+            hata += 1
 
-    e = embed("🔹 Yetkili Rol Kurulumu Tamamlandı", "15 Hiyerarşik yetkili rolü ve 4 Özel Görev rolü başarıyla oluşturuldu.", MAVI)
-    e.add_field(name="🛡️ Alt Yetkili (5 Rol)", value="\n".join(olusturulan["Alt Yetkili"]) or "Yok", inline=True)
-    e.add_field(name="🛡️ Üst Yetkili (5 Rol)", value="\n".join(olusturulan["Üst Yetkili"]) or "Yok", inline=True)
-    e.add_field(name="👑 Yönetim (5 Rol)", value="\n".join(olusturulan["Yönetim"]) or "Yok", inline=True)
-    e.add_field(name="🎯 Özel Görev Rolleri", value="\n".join(olusturulan["Görev Rolleri"]) or "Yok", inline=False)
+    e = embed("🔹 Toplu Rol Verme Tamamlandı", f"**Hedef Rol:** {rol.mention}\n\n✅ **Başarıyla Eklenen:** `{eklenen}` üye\nℹ️ **Zaten Rolü Olan:** `{zaten_var}` üye\n⚠️ **Başarısız / Hata:** `{hata}`", MAVI)
+    try:
+        await status_msg.edit(embed=e)
+    except discord.HTTPException:
+        await ctx.send(embed=e)
+    await log_gonder(ctx.guild, "rol_log", e)
 
-    await ctx.send(embed=e)
-    await log_gonder(ctx.guild, "mod_log", e)
+
+@bot.command(name="herkeserolsil", aliases=["herkese-rol-sil", "herkeserolkaldir"])
+@commands.has_permissions(manage_roles=True)
+async def herkeserolsil(ctx, rol: discord.Role = None):
+    """
+    Sunucudaki tüm üyelerden (botlar hariç) belirtilen rolü kaldırır.
+    Kullanım: .herkeserolsil @rol
+    """
+    if rol is None:
+        await ctx.send(embed=usage_embed(f"`{PREFIX}herkeserolsil @rol` veya `{PREFIX}herkeserolsil <rol_id>`"))
+        return
+
+    if rol >= ctx.guild.me.top_role:
+        await ctx.send(embed=error_embed("Rol Sırası Hatası", "Bu rol botun en yüksek rolünden eşit veya üstte olduğu için alınamaz."))
+        return
+
+    status_msg = await ctx.send(embed=embed("🔹 Herkesten Rol Kaldırılıyor", f"{rol.mention} rolü tüm üyelerden alınıyor, lütfen bekleyin...", MAVI))
+
+    silinen = 0
+    yoktu = 0
+    hata = 0
+
+    for member in ctx.guild.members:
+        if member.bot:
+            continue
+        if rol not in member.roles:
+            yoktu += 1
+            continue
+        try:
+            await member.remove_roles(rol, reason=f"{ctx.author} tarafından toplu rol alma işlemi yapıldı.")
+            silinen += 1
+            await asyncio.sleep(0.3)
+        except (discord.Forbidden, discord.HTTPException):
+            hata += 1
+
+    e = embed("🔹 Toplu Rol Alma Tamamlandı", f"**Hedef Rol:** {rol.mention}\n\n✅ **Başarıyla Alınan:** `{silinen}` üye\nℹ️ **Zaten Rolü Olmayan:** `{yoktu}` üye\n⚠️ **Başarısız / Hata:** `{hata}`", MAVI)
+    try:
+        await status_msg.edit(embed=e)
+    except discord.HTTPException:
+        await ctx.send(embed=e)
+    await log_gonder(ctx.guild, "rol_log", e)
+
+
+# ==========================================
+# Gelişmiş Modal (Pop-up Form) Kurulumlu Hoş Geldin Sistemi
+# ==========================================
+
+DEFAULT_HOSGELDIN_DIS_MESAJ = "HOŞ GELDİNN {uye_etiket}"
+DEFAULT_HOSGELDIN_BASLIK = "MIORIYE HOOŞGELDIN!! 🍙"
+DEFAULT_HOSGELDIN_ACIKLAMA = (
+    "💕 **Aramıza hoş geldin, güzel insan!** Buraya kadar geldiysen artık bizdensin... 😜 Umarım **{sunucu}** ortamımızda güzel vakit geçirir, bol bol sohbet eder ve harika anılar biriktirirsin. 👁️‍🗨️\n\n"
+    "💖 ✨ **Sunucuda seni neler bekliyor?**\n"
+    "┊\n"
+    "💬 **#sohbet** — Yabancılık çekmeyeceğin toxiclikten uzak samimi ortamımızda sohbet edebilirsin!! 🍥\n"
+    "┊\n"
+    "📖 **#kurallar** — Daha iyi bir ortam için kuralları okumayı ihmal etme!! 🍥\n"
+    "┊\n"
+    "🎉 **#çekiliş** — Etkinliklere katılıp eğlenmek ve güzel anılar biriktirmek istiyorsan burası tam senin için!! 🍥\n"
+    "┊\n"
+    "**{sunucu}** halkına tekrardan hoş geldin!! 🍙"
+)
+
+
+class HosgeldinModal(discord.ui.Modal, title="Hoş Geldin Mesajı Özelleştir"):
+    def __init__(self, channel: discord.TextChannel, current_data: dict):
+        super().__init__()
+        self.channel = channel
+
+        self.dis_mesaj = discord.ui.TextInput(
+            label="Dış Mesaj (Etiketli)",
+            style=discord.TextStyle.short,
+            placeholder="Örn: HOŞ GELDİNN {uye_etiket}",
+            default=current_data.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ,
+            required=False,
+            max_length=200
+        )
+        self.add_item(self.dis_mesaj)
+
+        self.baslik = discord.ui.TextInput(
+            label="Embed Başlığı",
+            style=discord.TextStyle.short,
+            placeholder="Örn: MIORIYE HOOŞGELDIN!! 🍙",
+            default=current_data.get("baslik") or DEFAULT_HOSGELDIN_BASLIK,
+            required=False,
+            max_length=256
+        )
+        self.add_item(self.baslik)
+
+        self.aciklama = discord.ui.TextInput(
+            label="Embed Açıklaması ({uye}, {sunucu} vb)",
+            style=discord.TextStyle.paragraph,
+            placeholder="💕 Aramıza hoş geldin {uye}! {sunucu} halkına katıldın...",
+            default=current_data.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA,
+            required=False,
+            max_length=2000
+        )
+        self.add_item(self.aciklama)
+
+        self.resim_url = discord.ui.TextInput(
+            label="Banner / GIF URL (İsteğe Bağlı)",
+            style=discord.TextStyle.short,
+            placeholder="https://media.giphy.com/...gif",
+            default=current_data.get("resim_url") or "",
+            required=False,
+            max_length=500
+        )
+        self.add_item(self.resim_url)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        data = guild_section(interaction.guild_id, "hosgeldin_sistemi", {})
+        data.update({
+            "aktif": True,
+            "kanal_id": self.channel.id,
+            "dis_mesaj": self.dis_mesaj.value.strip(),
+            "baslik": self.baslik.value.strip(),
+            "aciklama": self.aciklama.value.strip(),
+            "resim_url": self.resim_url.value.strip()
+        })
+        set_guild_section(interaction.guild_id, "hosgeldin_sistemi", data)
+
+        dis_mesaj = format_welcome_text(data["dis_mesaj"], interaction.user)
+        baslik = format_welcome_text(data["baslik"], interaction.user)
+        aciklama = format_welcome_text(data["aciklama"], interaction.user)
+
+        e = embed(baslik or "Aramıza Hoş Geldin!", aciklama, MAVI)
+        if data["resim_url"]:
+            e.set_image(url=data["resim_url"])
+        if interaction.user.display_avatar:
+            e.set_thumbnail(url=interaction.user.display_avatar.url)
+
+        confirm_embed = embed("🔹 Hoş Geldin Sistemi Kaydedildi!", f"Tüm ayarlarınız başarıyla kaydedildi ve {self.channel.mention} kanalında aktif edildi.\n\n**Canlı Önizleme Aşağıdadır:**", MAVI)
+
+        await interaction.response.send_message(embed=confirm_embed, ephemeral=True)
+        if dis_mesaj:
+            await interaction.followup.send(content=dis_mesaj, embed=e, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=e, ephemeral=True)
+
+
+class HosgeldinKurulumView(discord.ui.View):
+    def __init__(self, author_id: int, channel: discord.TextChannel):
+        super().__init__(timeout=180)
+        self.author_id = author_id
+        self.channel = channel
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message(embed=error_embed("Yetki Hatası", "Bu butonları yalnızca komutu çalıştıran yönetici kullanabilir."), ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="⚙️ Formu Aç ve Kur (Modal)", style=discord.ButtonStyle.primary, custom_id="hosgeldin_modal_ac")
+    async def modal_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
+        current_data = guild_section(interaction.guild_id, "hosgeldin_sistemi", {})
+        modal = HosgeldinModal(channel=self.channel, current_data=current_data)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="🧪 Canlı Test Et", style=discord.ButtonStyle.secondary, custom_id="hosgeldin_test_et")
+    async def test_et(self, interaction: discord.Interaction, button: discord.ui.Button):
+        data = guild_section(interaction.guild_id, "hosgeldin_sistemi", {})
+        if not data.get("aktif"):
+            await interaction.response.send_message(embed=error_embed("Sistem Pasif", "Önce '⚙️ Formu Aç ve Kur' butonuna basarak ayarlarınızı kaydedin."), ephemeral=True)
+            return
+
+        dis_mesaj = format_welcome_text(data.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ, interaction.user)
+        baslik = format_welcome_text(data.get("baslik") or DEFAULT_HOSGELDIN_BASLIK, interaction.user)
+        aciklama = format_welcome_text(data.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA, interaction.user)
+        resim_url = data.get("resim_url")
+
+        e = embed(baslik, aciklama, MAVI)
+        if resim_url:
+            e.set_image(url=resim_url)
+        if interaction.user.display_avatar:
+            e.set_thumbnail(url=interaction.user.display_avatar.url)
+
+        await interaction.response.send_message(embed=embed("🔹 Canlı Test Mesajı Gönderildi", f"Test mesajı {interaction.channel.mention} kanalında yayınlandı:", MAVI), ephemeral=True)
+        if dis_mesaj:
+            await interaction.channel.send(content=dis_mesaj, embed=e)
+        else:
+            await interaction.channel.send(embed=e)
+
+    @discord.ui.button(label="❌ Sistemi Kapat", style=discord.ButtonStyle.danger, custom_id="hosgeldin_sistem_kapat")
+    async def sistem_kapat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        data = guild_section(interaction.guild_id, "hosgeldin_sistemi", {})
+        data["aktif"] = False
+        set_guild_section(interaction.guild_id, "hosgeldin_sistemi", data)
+        await interaction.response.send_message(embed=embed("🔹 Hoş Geldin Sistemi Kapatıldı", "Sistem devre dışı bırakıldı.", MAVI), ephemeral=True)
+
+
+@bot.command(name="hosgeldin-kur", aliases=["hoşgeldin-kur", "hosgeldinkur", "hoşgeldinkur", "welcome-setup"])
+@commands.has_permissions(manage_guild=True)
+async def hosgeldin_kur(ctx, kanal: discord.TextChannel = None):
+    """
+    Tek komut ve Modal (Pop-up Form) penceresi ile Hoş Geldin Sistemini kurar ve özelleştirir.
+    Kullanım: .hosgeldin-kur [#kanal]
+    """
+    target_channel = kanal or ctx.channel
+    data = guild_section(ctx.guild.id, "hosgeldin_sistemi", {})
+    durum_metni = "Aktif" if data.get("aktif") else "Henüz Kurulmadı / Devre Dışı"
+
+    e = embed(
+        "🔹 Gelişmiş Hoş Geldin Kurulum Formu",
+        f"**Seçilen Kanal:** {target_channel.mention}\n**Mevcut Durum:** `{durum_metni}`\n\n"
+        "Aşağıdaki **⚙️ Formu Aç ve Kur (Modal)** butonuna basarak tüm metinleri, başlığı ve GIF görselini pop-up (modal) form penceresinde kolayca ayarlayabilirsiniz!\n\n"
+        "**Formda Kullanabileceğiniz Değişkenler:**\n"
+        "`{uye}` veya `{uye_etiket}` ➔ Üye Etiketi\n"
+        "`{uye_adi}` ➔ Üye Kullanıcı Adı\n"
+        "`{sunucu}` ➔ Sunucu Adı\n"
+        "`{uye_sayisi}` ➔ Toplam Üye Sayısı\n"
+        "`{hesap_tarihi}` ➔ Hesap Açılış Tarihi",
+        MAVI
+    )
+
+    await ctx.send(embed=e, view=HosgeldinKurulumView(author_id=ctx.author.id, channel=target_channel))
+
+
+@bot.command(name="otorol", aliases=["oto-rol", "otomatikrol"])
+@commands.has_permissions(manage_roles=True)
+async def otorol(ctx, rol: discord.Role = None):
+    """Sunucuya yeni katılan üyelere otomatik rol verir."""
+    if rol is None:
+        set_guild_section(ctx.guild.id, "otorol_id", None)
+        await ctx.send(embed=embed("🔹 Otorol Kapatıldı", "Giriş yapan üyelere otomatik rol verilmesi kapatıldı.", MAVI))
+        return
+    set_guild_section(ctx.guild.id, "otorol_id", rol.id)
+    await ctx.send(embed=embed("🔹 Otorol Ayarlandı", f"Sunucuya yeni katılan üyelere otomatik olarak {rol.mention} rolü verilecek.", MAVI))
 
 
 def warnings_get(guild_id: int) -> dict:
@@ -1407,7 +1567,8 @@ async def ping(ctx):
 
 async def gelismis_yardim(ctx):
     e = embed("🔹 LogBot Komut Rehberi 🔹", "Tüm moderasyon, koruma ve sistem komutları aşağıda listelenmiştir.", MAVI)
-    e.add_field(name="🛡️ Moderasyon & Yönetim", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `yetkilirolekle`", inline=False)
+    e.add_field(name="🛡️ Moderasyon & Rol Yönetimi", value="`ban`, `unban`, `kick`, `mute`, `unmute`, `sil`, `warn`, `uyarlar`, `uyarsil`, `jail`, `unjail`, `lock`, `unlock`, `slowmode`, `herkeserol`, `herkeserolsil`, `otorol`", inline=False)
+    e.add_field(name="👋 Hoş Geldin Sistemi", value="`hosgeldin-kur` *(Form (Modal) pencereli tek komutla tüm metin/resim kurulumu)*", inline=False)
     e.add_field(name="🔒 Koruma Sistemleri", value="`kufur-kur`, `kufur-kapat`, `link-koruma-aktif`, `link-koruma-kapat`, `spam-koruma-kur`, `spam-koruma-kapat`, `spam-koruma-durum`", inline=False)
     e.add_field(name="🎉 Çekiliş & Bilet & Sistem", value="`gstart`, `gend`, `greroll`, `glist`, `gdelete`, `ginfo`, `ticketkur`, `ticketpanel`, `ticketkapat`, `afk`, `logkur`, `log-kur`, `log-kaldir`, `log-durum`", inline=False)
     e.add_field(name="📢 Duyuru", value=f"`{PREFIX}duyuru #kanal mesaj [gif-linki]`", inline=False)
@@ -1518,7 +1679,44 @@ async def on_member_unban(guild: discord.Guild, user: discord.User):
 
 @bot.event
 async def on_member_join(member: discord.Member):
+    # Log gönderimi
     await log_gonder(member.guild, "giris_cikis", embed("🔹 Üye Katıldı", f"{member.mention} sunucuya katıldı.\n**Kullanıcı ID:** `{member.id}`", MAVI))
+
+    # Otomatik Rol
+    otorol_id = guild_section(member.guild.id, "otorol_id", None)
+    if otorol_id:
+        rol = member.guild.get_role(int(otorol_id))
+        if rol and rol < member.guild.me.top_role:
+            try:
+                await member.add_roles(rol, reason="Otomatik rol verme (Otorol)")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
+    # Hoş Geldin Mesajı Gönderimi
+    hosgeldin = guild_section(member.guild.id, "hosgeldin_sistemi", {})
+    if hosgeldin.get("aktif"):
+        kanal_id = hosgeldin.get("kanal_id")
+        if kanal_id:
+            kanal = member.guild.get_channel(int(kanal_id))
+            if isinstance(kanal, discord.TextChannel):
+                dis_mesaj = format_welcome_text(hosgeldin.get("dis_mesaj") or DEFAULT_HOSGELDIN_DIS_MESAJ, member)
+                baslik = format_welcome_text(hosgeldin.get("baslik") or DEFAULT_HOSGELDIN_BASLIK, member)
+                aciklama = format_welcome_text(hosgeldin.get("aciklama") or DEFAULT_HOSGELDIN_ACIKLAMA, member)
+                resim_url = hosgeldin.get("resim_url")
+
+                e = embed(baslik, aciklama, MAVI)
+                if resim_url:
+                    e.set_image(url=resim_url)
+                if member.display_avatar:
+                    e.set_thumbnail(url=member.display_avatar.url)
+
+                try:
+                    if dis_mesaj:
+                        await kanal.send(content=dis_mesaj, embed=e)
+                    else:
+                        await kanal.send(embed=e)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
 
 
 @bot.event
